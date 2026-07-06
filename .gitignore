@@ -45,3 +45,8 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Temporary files
 tmp/
 temp/
+
+# Antigravity specific files
+.agents/
+AGENTS.md
+
