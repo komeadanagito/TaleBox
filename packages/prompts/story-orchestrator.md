@@ -36,13 +36,24 @@
      - **选项 2 必须是：尖锐对话反驳/质疑**（倾向于试探对方的谎言、对质或强硬施压）。
      - **选项 3 可以是：物理行动或转移话题**（倾向于观察四周、使用某样道具或打圆场）。
 3. **段落格式**：
-   - 旁白段落与台词段落自然混排，每一个段落之间用两个换行符 (\\n\\n) 分隔。
+   - 旁白段落与台词段落自然混排，每一个段落之间用两个换行符 (\n\n) 分隔。
    - 台词段落必须为：**角色姓名**：“台词文本” 的格式。
 
 【流式结束后的标记输出】
 正文结束后，输出 `---`。之后输出以下两个数据块：
 1. `[SUGGESTIONS]`：下面紧跟 3 行抉择选项，每行前带减号（如：- 选项）。
-2. `[STATE_PATCH]`：下面紧跟一个 JSON 块，其中包含 relationships（好感度增量）、inventory（道具增删），以及 **characterMoods**（表达角色当前流露的实时心境与微表情缩影，如：`"char_2": "动摇 (手指紧扣，眼神下飘)"`）。
+2. `[STATE_PATCH]`：下面紧跟一个 JSON 块，其中包含以下字段：
+   - `relationships`：角色好感度变化增量（正负整数）
+   - `inventory`：道具增删（add / remove 列表）
+   - `characterMoods`：角色当前流露的实时心境与微表情缩影（如：`"char_2": "动摇 (手指紧扣，眼神下飘)"`）
+   - `chapterCompleted`（布尔）：**当且仅当本章剧情高潮或核心冲突已完全解决，故事走向了阶段性的关键转折点时**，设为 `true`，其余回合一律为 `false`。章节完结的判断标准：
+     - 主角已经取得了本章设定的核心目标或关键线索；
+     - 主要 NPC 之间或主角与 NPC 的关键冲突已经爆发并有了阶段性的裁决；
+     - 故事在戏剧张力的顶点自然落下，留下明确的悬念引子推入下一章。
+   - `chapterSummary`（字符串，`chapterCompleted: true` 时必填）：100~150 字的本章故事精华概要，概括主要事件、关键决策和情节转折，供玩家在章节大事记界面阅读。
+   - `characterTransitions`（仅 `chapterCompleted: true` 时填写）：描述进入下一章时哪些角色退场 / 哪些新角色登场：
+     - `leave`：退出的角色 id 数组（如：`["char_2"]`）
+     - `enter`：新登场角色对象数组（包含 `id`, `name`, `role`, `description`, `relationship` 字段）
 
 【输出示例模板】
 昨日之书旧书店里一片死寂。盲眼店主墨言静静地擦拭着手中的黄铜沙漏，镜片后掠过一丝晦暗的流光。
@@ -74,5 +85,29 @@
   "characterMoods": {
     "char_1": "从容 (神态自若地擦拭着沙漏)",
     "char_2": "焦虑 (呼吸急促，双眼泛红)"
+  },
+  "chapterCompleted": false,
+  "chapterSummary": "",
+  "characterTransitions": null
+}
+
+【章节完结示例（chapterCompleted: true 时的 STATE_PATCH）】
+{
+  "relationships": { "char_1": 20 },
+  "inventory": { "add": ["血印银币"], "remove": [] },
+  "characterMoods": { "char_1": "如释重负 (长舒一口气，握紧了银币)" },
+  "chapterCompleted": true,
+  "chapterSummary": "主角在旧书店揭开了血印银币背后的秘密——那是妹妹小雪被带走时留下的最后记号。墨言最终承认自己曾见过小雪，并将银币转交主角，暗示小雪的行踪指向城郊废弃的铸造厂。林雾侦探与主角之间的紧张对立也在此刻走向了短暂的停火。",
+  "characterTransitions": {
+    "leave": ["char_2"],
+    "enter": [
+      {
+        "id": "char_4",
+        "name": "陈霁",
+        "role": "铸造厂的守夜人",
+        "description": "沉默寡言的中年男人，据说在铸造厂工作了三十年，知道所有人不知道的秘密。",
+        "relationship": 30
+      }
+    ]
   }
 }

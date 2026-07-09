@@ -25,6 +25,31 @@ export default function DialoguePage() {
   const [chapterSummary, setChapterSummary] = useState<string>("");
   const [pendingTransitions, setPendingTransitions] = useState<any>(null);
   const [currentChapterNumber, setCurrentChapterNumber] = useState<number>(1);
+  // Next chapter data: pre-generated in background while settlement screen is shown
+  const [nextChapterData, setNextChapterData] = useState<any>(null);
+  const [isGeneratingNextChapter, setIsGeneratingNextChapter] = useState<boolean>(false);
+
+  // Background pre-generate next chapter data when settlement screen appears
+  React.useEffect(() => {
+    if (!showChapterCompleteOverlay || !generatedFramework) return;
+    setIsGeneratingNextChapter(true);
+    setNextChapterData(null);
+    fetch("/api/generate-chapter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        framework: generatedFramework,
+        chapterSummary,
+        characterTransitions: pendingTransitions
+      })
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.result) setNextChapterData(data.result);
+      })
+      .catch((e) => console.error("Background chapter gen failed:", e))
+      .finally(() => setIsGeneratingNextChapter(false));
+  }, [showChapterCompleteOverlay]);
 
   // If no story setup exists, redirect back to creation root inside useEffect
   React.useEffect(() => {
@@ -214,6 +239,7 @@ export default function DialoguePage() {
         if (statePatch.chapterCompleted) {
           setChapterSummary(statePatch.chapterSummary || "这一章节的探险目标已达成。");
           setPendingTransitions(statePatch.characterTransitions || null);
+          setShowChapterCompleteOverlay(true); // 触发电影级全屏拉幕
         }
         
         setGeneratedFramework(nextFramework);
@@ -253,18 +279,16 @@ export default function DialoguePage() {
   // Perform cinematic timeline transition to next chapter
   const handleTransitionToNextChapter = async () => {
     setShowChapterCompleteOverlay(false);
-    
-    // Apply leaving & entering NPC character list transitions
-    let nextFramework = { ...generatedFramework };
+
+    // 1. Apply character transitions (leave → inactive, enter → add to characters)
+    let nextFramework = { ...generatedFramework } as any;
     if (pendingTransitions) {
       const { leave, enter } = pendingTransitions;
-      
       if (leave && leave.length > 0) {
-        nextFramework.characters = nextFramework.characters.map((c) => 
+        nextFramework.characters = nextFramework.characters.map((c: any) =>
           leave.includes(c.id) ? { ...c, status: "inactive" } : c
         );
       }
-      
       if (enter && enter.length > 0) {
         const addedEnter = enter.map((newChar: any) => ({
           ...newChar,
@@ -274,139 +298,89 @@ export default function DialoguePage() {
         nextFramework.characters = [...nextFramework.characters, ...addedEnter];
       }
     }
-    
+
+    // 2. Apply pre-generated next chapter scene & items (replace scene, append new items)
+    const chapterData = nextChapterData;
+    if (chapterData) {
+      // Replace current scene with new scene (or keep existing if null)
+      if (chapterData.newScene) {
+        nextFramework.scenes = [chapterData.newScene];
+      }
+      // Append new items (all discovered: false)
+      if (chapterData.newItems && chapterData.newItems.length > 0) {
+        nextFramework.items = [...(nextFramework.items || []), ...chapterData.newItems];
+      }
+    }
+
     setGeneratedFramework(nextFramework);
-    
-    // Increment chapter count
+
+    // 3. Increment chapter count and reset dialogue state
     const nextChapter = currentChapterNumber + 1;
     setCurrentChapterNumber(nextChapter);
-    
-    // Reset dialogue stream states
     setChatMessages([]);
     setDialogueSuggestions([]);
     setChapterSummary("");
     setPendingTransitions(null);
+    setNextChapterData(null);
     setRevealedParagraphsCount(1);
-    setIsAIResponding(true);
 
-    const transitionMsg = `【章节流转】开启第 ${nextChapter} 章。上一章故事概要为：${chapterSummary}。现在主角已动身前往新场景，遇到了新人物。请为新章节设计并撰写第一段开篇旁白描述（150字左右），交代当前的环境与危机，并引导与在场新角色的第一句对话。`;
-    
-    const aiTempId = `msg_ai_stream_${Date.now()}`;
-    setChatMessages([
-      {
-        id: aiTempId,
-        role: "narrator",
-        content: ""
-      }
-    ]);
+    // 4. Use pre-generated opening narrative if available; otherwise fallback to API stream
+    const openingText = chapterData?.openingNarrative;
+    const openingSuggestions = chapterData?.suggestions || [];
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          framework: nextFramework,
-          messages: [
-            {
-              id: `msg_transition_sys_${Date.now()}`,
-              role: "user",
-              content: transitionMsg
-            }
-          ],
-          userInput: transitionMsg,
-          tone: "章节切换"
-        })
-      });
+    if (openingText) {
+      // Directly display the pre-generated opening (typewriter will animate it)
+      const aiTempId = `msg_ai_stream_${Date.now()}`;
+      setChatMessages([{ id: aiTempId, role: "narrator", content: openingText }]);
+      setDialogueSuggestions(openingSuggestions);
+    } else {
+      // Fallback: call /api/chat to generate opening narrative on the fly
+      setIsAIResponding(true);
+      const aiTempId = `msg_ai_stream_${Date.now()}`;
+      setChatMessages([{ id: aiTempId, role: "narrator", content: "" }]);
 
-      if (!response.ok) {
-        throw new Error("Failed to start new chapter");
-      }
+      const transitionMsg = `【章节流转】开启第 ${nextChapter} 章。上一章故事概要：${chapterSummary}。请为新章节撰写精彩的开篇旁白（150字左右），交代当前环境与危机，引导与在场角色的第一句对话。`;
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("Response body not readable");
-      }
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            framework: nextFramework,
+            messages: [{ id: `msg_tr_${Date.now()}`, role: "user", content: transitionMsg }],
+            userInput: transitionMsg,
+            tone: "章节切换"
+          })
+        });
 
-      const decoder = new TextDecoder();
-      let fullText = "";
+        if (!response.ok) throw new Error("Failed to start new chapter");
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("Response body not readable");
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        fullText += chunk;
-
-        const parts = fullText.split("---");
-        const novelText = parts[0]?.trim() || "";
-
-        setChatMessages([{ id: aiTempId, role: "narrator", content: novelText }]);
-      }
-
-      const parts = fullText.split("---");
-      const metadata = parts[1] || "";
-      let suggestions: string[] = [];
-      let statePatch: any = null;
-
-      if (metadata.includes("[SUGGESTIONS]")) {
-        const sugIndex = metadata.indexOf("[SUGGESTIONS]");
-        const patchIndex = metadata.indexOf("[STATE_PATCH]");
-        let sugText = patchIndex !== -1 ? metadata.substring(sugIndex + 13, patchIndex).trim() : metadata.substring(sugIndex + 13).trim();
-        suggestions = sugText.split("\n").map(l => l.replace(/^-\s*/, "").trim()).filter(Boolean);
-      }
-
-      if (metadata.includes("[STATE_PATCH]")) {
-        const patchIndex = metadata.indexOf("[STATE_PATCH]");
-        const jsonText = metadata.substring(patchIndex + 13).trim();
-        try {
-          const startBrace = jsonText.indexOf("{");
-          const endBrace = jsonText.lastIndexOf("}");
-          if (startBrace !== -1 && endBrace !== -1) {
-            statePatch = JSON.parse(jsonText.substring(startBrace, endBrace + 1));
-          }
-        } catch (e) {}
-      }
-
-      setDialogueSuggestions(suggestions);
-
-      if (statePatch) {
-        const updatedFramework = { ...nextFramework };
-        if (statePatch.relationships) {
-          updatedFramework.characters = updatedFramework.characters.map((c) => {
-            const delta = statePatch.relationships[c.id] || 0;
-            const currentRel = c.relationship ?? 50;
-            return { ...c, relationship: Math.max(0, Math.min(100, currentRel + delta)) };
-          });
+        const decoder = new TextDecoder();
+        let fullText = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          fullText += chunk;
+          const novelText = fullText.split("---")[0]?.trim() || "";
+          setChatMessages([{ id: aiTempId, role: "narrator", content: novelText }]);
         }
-        if (statePatch.inventory) {
-          const added = statePatch.inventory.add || [];
-          const removed = statePatch.inventory.remove || [];
-          let nextItems = [...updatedFramework.items];
-          nextItems = nextItems.filter(item => !removed.some((rem: string) => item.name.toLowerCase().includes(rem.toLowerCase())));
-          for (const item of added) {
-            const idx = nextItems.findIndex(i => i.name === item);
-            if (idx === -1) {
-              nextItems.push({ id: `item_${Date.now()}`, name: item, description: "新获取的物品。", discovered: true });
-            } else {
-              nextItems[idx] = { ...nextItems[idx], discovered: true } as any;
-            }
-          }
-          updatedFramework.items = nextItems;
-        }
-        setGeneratedFramework(updatedFramework);
-      }
 
-    } catch (e) {
-      console.error("Transition API error:", e);
-      setChatMessages([
-        {
-          id: `msg_err_${Date.now()}`,
-          role: "narrator",
-          content: "（进入下一章剧情时受阻，请点击返回书架重试。）"
+        const metadata = fullText.split("---")[1] || "";
+        if (metadata.includes("[SUGGESTIONS]")) {
+          const sugIndex = metadata.indexOf("[SUGGESTIONS]");
+          const patchIndex = metadata.indexOf("[STATE_PATCH]");
+          const sugText = patchIndex !== -1 ? metadata.substring(sugIndex + 13, patchIndex) : metadata.substring(sugIndex + 13);
+          setDialogueSuggestions(sugText.split("\n").map((l) => l.replace(/^-\s*/, "").trim()).filter(Boolean));
         }
-      ]);
-    } finally {
-      setIsAIResponding(false);
+      } catch (e) {
+        console.error("Fallback transition API error:", e);
+        setChatMessages([{ id: `msg_err_${Date.now()}`, role: "narrator", content: "（进入下一章剧情时受阻，请返回书架重试。）" }]);
+      } finally {
+        setIsAIResponding(false);
+      }
     }
   };
 
@@ -728,43 +702,158 @@ export default function DialoguePage() {
         TaleBox Interactive Novel Lab © 2026. Made with Premium Minimalism.
       </footer>
 
-      {/* Cinematic Full Screen Chapter Complete Overlay */}
+      {/* Rich Chapter Settlement Overlay */}
       {showChapterCompleteOverlay && (
-        <div className="fixed inset-0 bg-neutral-950 text-white z-50 flex flex-col items-center justify-center p-8 space-y-8 animate-fade-in select-none">
+        <div className="fixed inset-0 bg-neutral-950 text-white z-50 flex flex-col overflow-y-auto">
           <style>{`
-            @keyframes fade-in {
-              0% { opacity: 0; }
-              100% { opacity: 1; }
+            @keyframes settle-fade-in {
+              0% { opacity: 0; transform: translateY(16px); }
+              100% { opacity: 1; transform: translateY(0); }
             }
-            .animate-fade-in {
-              animation: fade-in 0.8s ease-out forwards;
-            }
+            .settle-fade { animation: settle-fade-in 0.6s ease-out forwards; }
+            .settle-fade-2 { animation: settle-fade-in 0.6s ease-out 0.15s both; }
+            .settle-fade-3 { animation: settle-fade-in 0.6s ease-out 0.3s both; }
+            .settle-fade-4 { animation: settle-fade-in 0.6s ease-out 0.45s both; }
           `}</style>
-          <div className="space-y-3 text-center">
-            <span className="text-zinc-500 font-mono tracking-widest text-xs block uppercase animate-pulse">
-              CHRONOLOGY / 历史大事记
+
+          {/* Header */}
+          <div className="px-8 pt-12 pb-6 text-center settle-fade">
+            <span className="text-zinc-500 font-mono tracking-widest text-xs uppercase animate-pulse">
+              CHAPTER {currentChapterNumber} · COMPLETE
             </span>
-            <h2 className="text-3xl md:text-4xl font-serif font-bold text-white tracking-wide">
+            <h2 className="text-3xl md:text-4xl font-serif font-bold text-white tracking-wide mt-3">
               第 {currentChapterNumber} 章 完结
             </h2>
-            <div className="w-16 h-px bg-zinc-700 mx-auto my-6" />
+            <div className="w-16 h-px bg-zinc-700 mx-auto mt-6" />
           </div>
 
-          <div className="max-w-xl w-full bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 md:p-8 space-y-4 shadow-2xl">
-            <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">本章故事概要 Summary:</span>
-            <p className="text-sm font-serif leading-relaxed text-zinc-300 text-justify indent-8 tracking-wide">
-              {chapterSummary}
-            </p>
-          </div>
+          <div className="flex-1 w-full max-w-3xl mx-auto px-6 pb-16 space-y-6">
 
-          <div className="pt-8">
-            <button
-              type="button"
-              onClick={handleTransitionToNextChapter}
-              className="px-8 py-3 bg-white text-neutral-950 hover:bg-zinc-200 rounded-xl text-sm font-serif font-bold tracking-wider transition-all shadow-lg active:scale-95 hover:shadow-xl"
-            >
-              开启下一章 ➔
-            </button>
+            {/* Block 1: Chapter Summary */}
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 settle-fade-2">
+              <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block mb-3">
+                📖 本章大事记 · Chapter Summary
+              </span>
+              <p className="text-sm font-serif leading-relaxed text-zinc-300 text-justify indent-8 tracking-wide">
+                {chapterSummary || "这一章节的探险目标已达成。"}
+              </p>
+            </div>
+
+            {/* Block 2: Character Transitions */}
+            {pendingTransitions && (
+              <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 settle-fade-3">
+                <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block mb-4">
+                  🎭 角色动态 · Character Transitions
+                </span>
+                <div className="flex flex-wrap gap-3">
+                  {/* Leaving characters */}
+                  {(pendingTransitions.leave || []).map((charId: string) => {
+                    const char = generatedFramework?.characters.find((c) => c.id === charId);
+                    if (!char) return null;
+                    return (
+                      <div key={charId} className="flex items-start gap-3 bg-zinc-950/60 border border-zinc-700/50 rounded-xl p-3 w-full sm:w-auto sm:flex-1 min-w-[180px]">
+                        <div className="h-9 w-9 rounded-lg bg-zinc-700 flex items-center justify-center text-zinc-300 font-serif font-bold text-sm flex-shrink-0">
+                          {char.name[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-zinc-300 font-serif truncate">{char.name}</span>
+                            <span className="text-[9px] bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded font-mono flex-shrink-0">✕ 告别</span>
+                          </div>
+                          <span className="text-[10px] text-zinc-500 block mt-0.5 truncate">{char.role}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {/* Entering characters */}
+                  {(pendingTransitions.enter || []).map((char: any) => (
+                    <div key={char.id} className="flex items-start gap-3 bg-amber-950/30 border border-amber-800/40 rounded-xl p-3 w-full sm:w-auto sm:flex-1 min-w-[180px]">
+                      <div className="h-9 w-9 rounded-lg bg-amber-800/60 flex items-center justify-center text-amber-200 font-serif font-bold text-sm flex-shrink-0">
+                        {char.name[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-amber-200 font-serif truncate">{char.name}</span>
+                          <span className="text-[9px] bg-amber-800/50 text-amber-300 px-1.5 py-0.5 rounded font-mono flex-shrink-0">★ 登场</span>
+                        </div>
+                        <span className="text-[10px] text-amber-500/80 block mt-0.5 truncate">{char.role}</span>
+                        {char.description && (
+                          <p className="text-[10px] text-zinc-400 mt-1 leading-relaxed line-clamp-2">{char.description}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {(!pendingTransitions.leave?.length && !pendingTransitions.enter?.length) && (
+                    <p className="text-xs text-zinc-500 font-serif">所有角色延续进入下一章。</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Block 3: Next Chapter Scene & Items Preview */}
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 settle-fade-4">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">
+                  🗺 下一章预告 · Next Chapter Preview
+                </span>
+                {isGeneratingNextChapter && (
+                  <span className="text-[10px] text-zinc-500 font-mono animate-pulse">正在生成中...</span>
+                )}
+              </div>
+              {isGeneratingNextChapter ? (
+                <div className="space-y-2">
+                  <div className="h-3 bg-zinc-800 rounded animate-pulse w-3/4" />
+                  <div className="h-3 bg-zinc-800 rounded animate-pulse w-1/2" />
+                  <div className="h-3 bg-zinc-800 rounded animate-pulse w-2/3" />
+                </div>
+              ) : nextChapterData ? (
+                <div className="space-y-4">
+                  {nextChapterData.newScene ? (
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg">📍</span>
+                      <div>
+                        <span className="text-xs font-bold text-zinc-200 font-serif">新场景：{nextChapterData.newScene.title}</span>
+                        <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">{nextChapterData.newScene.summary}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg">📍</span>
+                      <p className="text-xs text-zinc-400 font-serif">剧情将在原场景中继续推进。</p>
+                    </div>
+                  )}
+                  {nextChapterData.newItems?.length > 0 && (
+                    <div className="flex items-start gap-3">
+                      <span className="text-lg">🎒</span>
+                      <div>
+                        <span className="text-xs font-bold text-zinc-200 font-serif">新线索出现：</span>
+                        <div className="mt-2 space-y-1">
+                          {nextChapterData.newItems.map((item: any) => (
+                            <div key={item.id} className="text-[11px] text-zinc-400">
+                              <span className="text-zinc-300 font-medium">【{item.name}】</span> {item.description}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-500 font-serif">预告生成失败，将在下一章开始时重新生成。</p>
+              )}
+            </div>
+
+            {/* Action Button */}
+            <div className="pt-4 flex justify-center settle-fade-4">
+              <button
+                type="button"
+                onClick={handleTransitionToNextChapter}
+                disabled={isGeneratingNextChapter}
+                className="px-10 py-3.5 bg-white text-neutral-950 hover:bg-zinc-100 disabled:bg-zinc-700 disabled:text-zinc-400 disabled:cursor-not-allowed rounded-xl text-sm font-serif font-bold tracking-wider transition-all shadow-lg active:scale-95 hover:shadow-xl"
+              >
+                {isGeneratingNextChapter ? "正在准备下一章..." : `开启第 ${currentChapterNumber + 1} 章 ➔`}
+              </button>
+            </div>
           </div>
         </div>
       )}
