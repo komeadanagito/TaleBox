@@ -46,6 +46,24 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 tmp/
 temp/
 
+# Build outputs & cache (do not commit)
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+.parcel-cache/
+.turbo/
+.expo/
+.expo-shared/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
 # Antigravity specific files
 .agents/
 AGENTS.md
