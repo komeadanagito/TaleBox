@@ -1,0 +1,8 @@
+export const NOVEL_COMPILER_VERSION = "3.3.0";
+export const NOVEL_PROMPT_VERSION = "2026-07-11.2";
+export const CHUNK_CHARACTER_LIMIT = 30_000;
+export const CHUNK_OVERLAP_PARAGRAPHS = 2;
+export const CHUNK_ANALYSIS_CONCURRENCY = 2;
+export const CHUNK_MAX_OUTPUT_TOKENS = 3_600;
+export const CHUNK_REQUEST_TIMEOUT_MS = 90_000;
+export const MIN_PLAN_COVERAGE = 1;

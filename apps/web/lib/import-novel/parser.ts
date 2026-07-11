@@ -119,7 +119,7 @@ function extractXhtml(html: string, fallbackTitle: string) {
 }
 
 const EPUB_CHAPTER_LABEL = /^(?:第[零〇一二三四五六七八九十百千万两\d]+[章节回篇幕集]|chapter\s*[\divxlcdm]+|序章|楔子|引子|前言|尾声|终章|后记|番外(?:[零〇一二三四五六七八九十\d]+)?)/i;
-const EPUB_NON_STORY_LABEL = /^(?:封面|版权(?:声明|信息|页)?|版权所有|目录|扉页|题词|献词|致谢|作者简介|出版信息|奥付|contents?(?:\s+page)?|table\s+of\s+contents|toc|title\s*page|copyright(?:\s+notice|\s+page)?|all\s+rights\s+reserved|dedication|epigraph|acknowledgements?|about\s+the\s+author|publication\s+info|colophon)/i;
+const EPUB_NON_STORY_LABEL = /^(?:封面|版权(?:声明|信息|页)?|版权所有|目录|扉页|题词|献词|致谢|简介|内容简介|内容提要|故事简介|本书简介|作者简介|出版信息|奥付|contents?(?:\s+page)?|table\s+of\s+contents|toc|title\s*page|copyright(?:\s+notice|\s+page)?|all\s+rights\s+reserved|dedication|epigraph|acknowledgements?|about\s+the\s+author|publication\s+info|colophon)/i;
 const EPUB_NON_STORY_CONTENT = /(?:all rights reserved|no part of this (?:book|publication)|isbn(?:-1[03])?\s*[:：]|copyright\s*[©\u00a9]|版权所有|未经许可.{0,20}(?:复制|转载)|出版发行)/i;
 const EPUB_NON_STORY_PATH = /(?:^|\/)(?:p-)?(?:cover|titlepage|toc|credit|kanko|colophon|copyright|fmatter)(?:[-_.\/]|$)/i;
 

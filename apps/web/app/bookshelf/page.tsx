@@ -30,11 +30,12 @@ export default function BookshelfPage() {
         const currentChapter = moveToNext ? activeSession.chapterNumber + 1 : activeSession.chapterNumber;
         const completedFraction = activeSession.status === "completed" ? 1 : (activeSession.progress || 0) / 100;
         const readingProgress = Math.min(100, Math.max(1, Math.round(((activeSession.chapterNumber - 1 + completedFraction) / novel.chapters.length) * 100)));
+        const modeQuery = activeSession.driveMode === "ai" ? "&mode=ai" : "";
         const resumePath = moveToNext
           ? `/story/${novel.id}/chapter/${currentChapter}/setup`
           : activeSession.status === "completed"
-            ? `/story/${novel.id}/chapter/${activeSession.chapterNumber}/play?role=${encodeURIComponent(activeSession.roleId)}`
-            : `/story/${novel.id}/chapter/${activeSession.chapterNumber}/play?role=${encodeURIComponent(activeSession.roleId)}`;
+            ? `/story/${novel.id}/chapter/${activeSession.chapterNumber}/play?role=${encodeURIComponent(activeSession.roleId)}${modeQuery}`
+            : `/story/${novel.id}/chapter/${activeSession.chapterNumber}/play?role=${encodeURIComponent(activeSession.roleId)}${modeQuery}`;
         return { ...novel, currentChapter, readingProgress, resumePath };
       }));
     }).catch((error) => console.error("Failed to load imported bookshelf:", error));

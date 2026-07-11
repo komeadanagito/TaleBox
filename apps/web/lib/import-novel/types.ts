@@ -1,13 +1,9 @@
-export type NovelCharacterStatus = "continuing" | "entering";
-
 export interface NovelCharacter {
   id: string;
   name: string;
   role: string;
-  description: string;
-  status: NovelCharacterStatus;
   playable: boolean;
-  initials: string;
+  evidenceParagraphId: string;
 }
 
 export type NovelStoryBlock =
@@ -17,8 +13,30 @@ export type NovelStoryBlock =
 
 export interface NovelChoice {
   id: string;
+  kind: "observe" | "focus" | "act" | "speak";
   label: string;
   hint: string;
+  doesNotChangeCanon: true;
+}
+
+export type NovelDriveMode = "original" | "ai";
+
+export interface AiChapterTurn {
+  id: string;
+  sourceStart: number;
+  sourceEnd: number;
+  location: string;
+  blocks: NovelStoryBlock[];
+  choices: NovelChoice[];
+  selectedChoiceId?: string;
+  createdAt: string;
+}
+
+export interface ChoiceTemplate {
+  kind: "observe_character" | "focus_source";
+  anchorParagraphId: string;
+  targetCharacterId: string | null;
+  roleIds: string[];
 }
 
 export interface SourceParagraph {
@@ -32,23 +50,24 @@ export interface SourceParagraph {
 export interface StoryBeat {
   id: string;
   order: number;
-  title: string;
-  summary: string;
   startParagraphId: string;
   endParagraphId: string;
-  location: string;
   characterIds: string[];
-  required: boolean;
-  completionCondition: string;
+  choiceTemplates: ChoiceTemplate[];
 }
 
 export interface ChapterAnalysis {
-  summary: string;
-  goal: string;
-  location: string;
+  sourceMode?: "faithful-v1" | "faithful-v2" | "faithful-v3";
+  compilerVersion?: string;
+  promptVersion?: string;
+  promptHash?: string;
+  sourceHash?: string;
+  coverage?: {
+    coveredParagraphCount: number;
+    totalParagraphCount: number;
+    ratio: number;
+  };
   characters: NovelCharacter[];
-  blocks: NovelStoryBlock[];
-  choices: NovelChoice[];
   beats: StoryBeat[];
 }
 
@@ -75,36 +94,31 @@ export interface ImportedNovel {
   chapters: ImportedChapter[];
 }
 
-export interface ChapterTurnResult {
-  blocks: NovelStoryBlock[];
-  choices: NovelChoice[];
-  chapterCompleted: boolean;
-  chapterSummary?: string;
-  beatCompleted: boolean;
-}
-
-export interface ChapterTurn {
+export interface ChapterDecision {
   id: string;
-  choice: NovelChoice;
-  blocks: NovelStoryBlock[];
+  beatId: string;
+  choiceId: string;
   createdAt: string;
 }
 
 export interface ChapterSession {
+  sourceMode?: "faithful-v1" | "faithful-v2" | "faithful-v3";
+  compilerVersion?: string;
+  sourceHash?: string;
   id: string;
   novelId: string;
   chapterNumber: number;
   roleId: string;
+  driveMode?: NovelDriveMode;
+  aiRuntimeVersion?: string;
   currentBeatIndex: number;
   sourceCursor: number;
   completedBeatIds: string[];
-  turns: ChapterTurn[];
-  currentBlocks: NovelStoryBlock[];
-  currentChoices: NovelChoice[];
+  decisions?: ChapterDecision[];
+  aiTurns?: AiChapterTurn[];
   revealedBlockCount: number;
   choicesVisible: boolean;
   progress: number;
   status: "playing" | "completed";
-  endingSummary?: string;
   updatedAt: string;
 }

@@ -1,41 +1,78 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createParagraphChunks } from "../../../../lib/import-novel/compiler/chunker";
+import { CHUNK_ANALYSIS_CONCURRENCY } from "../../../../lib/import-novel/compiler/constants";
+import { serializeChapterSource, sha256 } from "../../../../lib/import-novel/compiler/hash";
+import { mergeChapterPlan } from "../../../../lib/import-novel/compiler/merger";
+import { createSourceOnlyChunkPlan } from "../../../../lib/import-novel/compiler/source-only";
+import { assertChapterPlan } from "../../../../lib/import-novel/compiler/validator";
 import { getEnv, loadPrompt } from "../../env";
-import { normalizeAnalysis, parseModelJSON } from "../helpers";
+import {
+  extractChunkWithRetry,
+  isNonNarrativeChapter,
+  parseAnalyzeChapterInput,
+  renderPrompt,
+} from "../helpers";
+import type { ChapterAnalysis } from "../../../../lib/import-novel/types";
+
+const SYSTEM_PROMPT_FILE = "novel-chunk-extractor.system.md";
+const USER_PROMPT_FILE = "novel-chunk-extractor.user.md";
+const RETRY_PROMPT_FILE = "novel-chunk-extractor.retry.md";
 
 export async function POST(request: NextRequest) {
+  let input;
   try {
-    const body = await request.json();
-    const novelTitle = typeof body.novelTitle === "string" ? body.novelTitle : "未命名小说";
-    const chapterTitle = typeof body.chapterTitle === "string" ? body.chapterTitle : "正文";
-    const chapterContent = typeof body.chapterContent === "string" ? body.chapterContent : "";
-    const previousSummary = typeof body.previousSummary === "string" ? body.previousSummary : "无";
-    if (chapterContent.length < 50) return NextResponse.json({ error: "章节正文过短" }, { status: 400 });
-    const nonNarrativeTitle = /^(?:copyright|all rights reserved|contents?|table of contents|dedication|epigraph|acknowledgements?|版权|目录|题词|献词|致谢)/i.test(chapterTitle.trim());
-    const nonNarrativeContent = chapterContent.replace(/\s/g, "").length < 6000 && /(?:all rights reserved|no part of this (?:book|publication)|isbn(?:-1[03])?\s*[:：]|copyright\s*[©\u00a9]|版权所有|出版发行)/i.test(chapterContent.slice(0, 2500));
-    if (nonNarrativeTitle || nonNarrativeContent) return NextResponse.json({ error: "该页面属于电子书前置信息，不作为互动章节" }, { status: 422 });
-    const apiKey = getEnv("LLM_API_KEY");
-    const baseUrl = getEnv("LLM_BASE_URL");
-    const model = getEnv("LLM_MODEL") || "qwen3.6-max-preview";
-    if (!apiKey || !baseUrl) return NextResponse.json({ error: "缺少 LLM 配置" }, { status: 500 });
-    const template = loadPrompt("novel-import.md");
-    const rawParagraphs = chapterContent.split(/\n+/).map((text: string) => text.trim()).filter(Boolean);
-    const paragraphIds = rawParagraphs.map((_: string, index: number) => `p-${String(index + 1).padStart(4, "0")}`);
-    const taggedContent = rawParagraphs.map((text: string, index: number) => `[${paragraphIds[index]}] ${text}`).join("\n").slice(0, 60000);
-    const includedParagraphIds = paragraphIds.slice(0, taggedContent.split("\n").length);
-    const prompt = template
-      .replace("{{NOVEL_TITLE}}", novelTitle)
-      .replace("{{CHAPTER_TITLE}}", chapterTitle)
-      .replace("{{PREVIOUS_SUMMARY}}", previousSummary)
-      .replace("{{CHAPTER_CONTENT}}", taggedContent);
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, temperature: 0.35, messages: [{ role: "system", content: "你是严谨的小说章节结构分析器，只输出合法JSON。" }, { role: "user", content: prompt }] }),
-    });
-    const data = await response.json();
-    if (!response.ok) return NextResponse.json({ error: data.error?.message || "章节分析失败" }, { status: response.status });
-    return NextResponse.json({ result: normalizeAnalysis(parseModelJSON(data.choices?.[0]?.message?.content || ""), includedParagraphIds) });
+    input = parseAnalyzeChapterInput(await request.json());
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "章节分析失败" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "请求格式无效" }, { status: 400 });
+  }
+
+  if (isNonNarrativeChapter(input.chapterTitle, input.paragraphs)) {
+    return NextResponse.json({ error: "该页面属于电子书前置信息，不作为互动章节" }, { status: 422 });
+  }
+
+  const apiKey = getEnv("LLM_API_KEY");
+  const baseUrl = getEnv("LLM_BASE_URL");
+  const model = getEnv("LLM_IMPORT_MODEL") || getEnv("LLM_MODEL");
+  if (!apiKey || !baseUrl || !model) return NextResponse.json({ error: "缺少 LLM 配置" }, { status: 500 });
+
+  try {
+    const systemPrompt = loadPrompt(SYSTEM_PROMPT_FILE).trim();
+    const userTemplate = loadPrompt(USER_PROMPT_FILE);
+    const retryPrompt = loadPrompt(RETRY_PROMPT_FILE).trim();
+    if (!systemPrompt || !retryPrompt) throw new Error("章节提取提示词缺失");
+
+    const sourceHash = await sha256(serializeChapterSource(input.chapterTitle, input.paragraphs));
+    const promptHash = await sha256(`${systemPrompt}\n---\n${userTemplate.trim()}\n---\n${retryPrompt}`);
+    const chunks = createParagraphChunks(input.paragraphs);
+    const results: ChapterAnalysis[] = [];
+
+    for (let index = 0; index < chunks.length; index += CHUNK_ANALYSIS_CONCURRENCY) {
+      const batch = chunks.slice(index, index + CHUNK_ANALYSIS_CONCURRENCY);
+      results.push(...await Promise.all(batch.map((chunk) => {
+        const userPrompt = renderPrompt(userTemplate, {
+          CHAPTER_TITLE: input.chapterTitle,
+          CHAPTER_CONTENT: chunk.paragraphs.map((paragraph) => `[${paragraph.id}] ${paragraph.text}`).join("\n"),
+        });
+        return extractChunkWithRetry({ apiKey, baseUrl, model, systemPrompt, userPrompt, retryPrompt, paragraphs: chunk.paragraphs })
+          .catch((error: unknown) => {
+            if (error instanceof Error && error.message === "该页面属于电子书前置信息，不作为互动章节") {
+              throw error;
+            }
+            console.warn(`[novel-import] chunk ${chunk.index + 1}/${chunks.length} uses source-only plan:`, error instanceof Error ? error.message : error);
+            return createSourceOnlyChunkPlan(chunk.paragraphs);
+          });
+      })));
+    }
+
+    const paragraphIds = input.paragraphs.map((paragraph) => paragraph.id);
+    const result = mergeChapterPlan(results, paragraphIds, sourceHash);
+    const finalPlan = { ...result, promptHash };
+    assertChapterPlan(finalPlan, input.paragraphs, sourceHash);
+    return NextResponse.json({ result: finalPlan });
+  } catch (error) {
+    if (error instanceof Error && error.message === "该页面属于电子书前置信息，不作为互动章节") {
+      return NextResponse.json({ error: error.message }, { status: 422 });
+    }
+    return NextResponse.json({ error: error instanceof Error ? error.message : "章节结构提取失败" }, { status: 500 });
   }
 }

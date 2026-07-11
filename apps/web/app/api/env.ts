@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 
+const promptCache = new Map<string, string>();
+
 export function getEnv(key: string): string {
   // 1. Try standard process.env
   if (process.env[key]) {
@@ -14,7 +16,6 @@ export function getEnv(key: string): string {
       path.join(cwd, ".env"),
       path.join(cwd, "../../.env"),
       path.join(cwd, "apps/web/.env"),
-      "/Users/quan/MyFile/CodeProject/TaleBox/.env" // absolute path fallback
     ];
     
     for (const envPath of pathsToTry) {
@@ -43,23 +44,24 @@ export function getEnv(key: string): string {
 }
 
 export function loadPrompt(fileName: string): string {
-  try {
-    const cwd = process.cwd();
-    const pathsToTry = [
-      path.join(cwd, "packages/prompts", fileName),
-      path.join(cwd, "../../packages/prompts", fileName),
-      path.join(cwd, "apps/web/../../packages/prompts", fileName),
-      path.join("/Users/quan/MyFile/CodeProject/TaleBox/packages/prompts", fileName) // absolute fallback
-    ];
-    
-    for (const p of pathsToTry) {
-      if (fs.existsSync(p)) {
-        return fs.readFileSync(p, "utf-8");
-      }
-    }
-  } catch (err) {
-    console.error("Error loading prompt " + fileName + ":", err);
+  if (path.basename(fileName) !== fileName) throw new Error(`Invalid prompt file name: ${fileName}`);
+  const isDev = process.env.NODE_ENV === "development";
+  const cached = promptCache.get(fileName);
+  if (cached && !isDev) return cached;
+
+  const cwd = process.cwd();
+  const pathsToTry = [
+    path.resolve(cwd, "packages/prompts", fileName),
+    path.resolve(cwd, "../../packages/prompts", fileName),
+  ];
+
+  for (const promptPath of pathsToTry) {
+    if (!fs.existsSync(promptPath)) continue;
+    const prompt = fs.readFileSync(promptPath, "utf-8").trim();
+    if (!prompt) throw new Error(`Prompt file is empty: ${fileName}`);
+    promptCache.set(fileName, prompt);
+    return prompt;
   }
-  
-  return "";
+
+  throw new Error(`Prompt file not found: ${fileName}`);
 }
