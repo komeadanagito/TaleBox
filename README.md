@@ -2,9 +2,13 @@
 
 ![TaleBox Banner](image.png)
 
-> **打破阅读次元壁 —— 你的 AI 驱动沉浸式互动小说世界**
+> **打破阅读次元壁，将静态文本解构为可对话、可抉择的 AI 动态叙事空间。**
+>
+> **Deconstruct static text into conversational, decision-driven AI narrative worlds.**
 
-TaleBox 是一款**将小说解构为互动世界**的 AI 驱动沉浸式平台。在 TaleBox 中，传统的静态文字被转化为可感知、可对话、可抉择的动态剧情。无论是本地 txt 小说还是你脑海中的灵感，TaleBox 都能赋予其全新的 3D 互动生命力。
+TaleBox 是一款 **AI 驱动的沉浸式互动小说与解构平台**。在这里，无论是本地 TXT 小说还是脑海中的灵感，都将被转化为支持 3D 立体书架、角色共情对话和分支剧情演进的动态互动世界。
+
+TaleBox is an **AI-powered immersive interactive novel and deconstruction platform** that transforms static text files and creative sparks into dynamic narrative worlds featuring 3D bookshelves, character dialogues, and branching plot progression.
 
 ---
 
