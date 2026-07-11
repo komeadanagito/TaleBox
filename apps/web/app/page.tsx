@@ -97,10 +97,10 @@ export default function RootWelcomePage() {
                     导入小说文本
                     <ChevronRight className="h-4 w-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
                   </h3>
-                  <span className="text-[10px] bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full font-sans font-normal">体验版</span>
+                  <span className="text-[10px] bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full font-sans font-normal">TXT · EPUB</span>
                 </div>
                 <p className="text-zinc-500 text-xs leading-relaxed">
-                  上传本地 TXT 小说，逐章选择原著角色，通过剧情选项重新经历故事中的关键时刻。
+                  导入 TXT 或 EPUB 小说，选择原著角色走进故事，在一次次抉择中亲历熟悉的世界与命运。
                 </p>
               </div>
             </button>

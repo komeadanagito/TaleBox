@@ -10,6 +10,9 @@ export async function POST(request: NextRequest) {
     const chapterContent = typeof body.chapterContent === "string" ? body.chapterContent : "";
     const previousSummary = typeof body.previousSummary === "string" ? body.previousSummary : "无";
     if (chapterContent.length < 50) return NextResponse.json({ error: "章节正文过短" }, { status: 400 });
+    const nonNarrativeTitle = /^(?:copyright|all rights reserved|contents?|table of contents|dedication|epigraph|acknowledgements?|版权|目录|题词|献词|致谢)/i.test(chapterTitle.trim());
+    const nonNarrativeContent = chapterContent.replace(/\s/g, "").length < 6000 && /(?:all rights reserved|no part of this (?:book|publication)|isbn(?:-1[03])?\s*[:：]|copyright\s*[©\u00a9]|版权所有|出版发行)/i.test(chapterContent.slice(0, 2500));
+    if (nonNarrativeTitle || nonNarrativeContent) return NextResponse.json({ error: "该页面属于电子书前置信息，不作为互动章节" }, { status: 422 });
     const apiKey = getEnv("LLM_API_KEY");
     const baseUrl = getEnv("LLM_BASE_URL");
     const model = getEnv("LLM_MODEL") || "qwen3.6-max-preview";

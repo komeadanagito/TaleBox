@@ -9,11 +9,18 @@ import {
 } from "lucide-react";
 import { useStory } from "../context/StoryContext";
 import ThreeBookshelf from "../../components/ThreeBookshelf";
+import { deleteImportedNovel, listImportedNovels } from "../../lib/import-novel/store";
+import type { ImportedNovel } from "../../lib/import-novel/types";
 
 export default function BookshelfPage() {
   const router = useRouter();
   const { stories, loadStory, createNewStory, deleteStory } = useStory();
   const [shelfTab, setShelfTab] = useState<"create" | "upload">("create");
+  const [importedNovels, setImportedNovels] = useState<ImportedNovel[]>([]);
+
+  useEffect(() => {
+    void listImportedNovels().then(setImportedNovels).catch((error) => console.error("Failed to load imported bookshelf:", error));
+  }, []);
   
   // Modal states for 3D page flipping details view
   const [selectedStory, setSelectedStory] = useState<any | null>(null);
@@ -25,6 +32,10 @@ export default function BookshelfPage() {
   const [deletingStoryId, setDeletingStoryId] = useState<string | null>(null);
 
   const handleStartNewCreation = () => {
+    if (shelfTab === "upload") {
+      router.push("/creation/import-novel");
+      return;
+    }
     createNewStory();
     router.push("/creation");
   };
@@ -39,6 +50,10 @@ export default function BookshelfPage() {
   const [selectedDetail, setSelectedDetail] = useState<any | null>(null);
 
   const handleSelectBook = (story: any) => {
+    if (story.fileType && Array.isArray(story.chapters)) {
+      router.push(`/story/${story.id}/chapter/1/setup`);
+      return;
+    }
     setSelectedStory(story);
     setDetailTab('chapters');
     setSelectedDetail(null);
@@ -46,6 +61,17 @@ export default function BookshelfPage() {
     setTimeout(() => {
       setIsFlipped(true);
     }, 100);
+  };
+
+  const handleDeleteImported = async (novel: ImportedNovel) => {
+    if (!confirm(`确定要从上传书架移出《${novel.title}》吗？该书的互动进度也会一并删除。`)) return;
+    try {
+      await deleteImportedNovel(novel.id);
+      setImportedNovels((current) => current.filter((item) => item.id !== novel.id));
+    } catch (error) {
+      console.error("Failed to delete imported novel:", error);
+      alert("暂时无法移除这本书，请稍后再试。");
+    }
   };
 
   const handleCloseModal = () => {
@@ -161,17 +187,19 @@ export default function BookshelfPage() {
           </div>
           <div className="flex gap-1 rounded-full bg-zinc-100 p-1">
             <button type="button" onClick={() => setShelfTab("create")} className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all ${shelfTab === "create" ? "bg-white text-zinc-950 shadow-sm" : "text-zinc-400 hover:text-zinc-600"}`}>创作 ({stories.length})</button>
-            <button type="button" onClick={() => setShelfTab("upload")} className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all ${shelfTab === "upload" ? "bg-white text-zinc-950 shadow-sm" : "text-zinc-400 hover:text-zinc-600"}`}>上传 (0)</button>
+            <button type="button" onClick={() => setShelfTab("upload")} className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all ${shelfTab === "upload" ? "bg-white text-zinc-950 shadow-sm" : "text-zinc-400 hover:text-zinc-600"}`}>上传 ({importedNovels.length})</button>
           </div>
         </div>
         <div className="flex-1 min-h-[580px] w-full flex items-center justify-center">
           <ThreeBookshelf
             stories={stories}
+            importedNovels={importedNovels}
             onSelectBook={handleSelectBook}
             onCreateNew={handleStartNewCreation}
             tab={shelfTab}
             deletingStoryId={deletingStoryId}
             onDeleteComplete={handleDeleteComplete}
+            onDeleteImported={(story) => void handleDeleteImported(story)}
           />
         </div>
       </main>

@@ -66,11 +66,42 @@ export async function getImportedNovel(id: string): Promise<ImportedNovel | null
   });
   database.close();
   if (novel) {
+    if (!novel.fileType) novel.fileType = novel.fileName.toLowerCase().endsWith(".epub") ? "epub" : "txt";
     for (const chapter of novel.chapters) {
       if (!Array.isArray(chapter.paragraphs) || chapter.paragraphs.length === 0) chapter.paragraphs = createParagraphs(chapter.content);
     }
   }
   return novel;
+}
+
+export async function listImportedNovels(): Promise<ImportedNovel[]> {
+  const database = await openDatabase();
+  const novels = await new Promise<ImportedNovel[]>((resolve, reject) => {
+    const request = database.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).getAll();
+    request.onsuccess = () => resolve((request.result as ImportedNovel[] | undefined) || []);
+    request.onerror = () => reject(request.error || new Error("读取上传书架失败"));
+  });
+  database.close();
+  return novels.map((novel) => ({ ...novel, fileType: novel.fileType || (novel.fileName.toLowerCase().endsWith(".epub") ? "epub" : "txt") })).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+}
+
+export async function deleteImportedNovel(id: string) {
+  const database = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction([STORE_NAME, SESSION_STORE_NAME], "readwrite");
+    transaction.objectStore(STORE_NAME).delete(id);
+    const sessionStore = transaction.objectStore(SESSION_STORE_NAME);
+    const request = sessionStore.openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+      if (String(cursor.key).startsWith(`${id}:`)) cursor.delete();
+      cursor.continue();
+    };
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error("移除上传小说失败"));
+  });
+  database.close();
 }
 
 export async function saveChapterAnalysis(novelId: string, chapterNumber: number, analysis: ChapterAnalysis) {

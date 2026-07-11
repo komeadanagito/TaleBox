@@ -67,6 +67,8 @@ export interface ImportedNovel {
   title: string;
   author: string;
   fileName: string;
+  fileType: "txt" | "epub";
+  coverDataUrl?: string;
   encoding: string;
   wordCount: number;
   createdAt: string;
@@ -99,6 +101,8 @@ export interface ChapterSession {
   turns: ChapterTurn[];
   currentBlocks: NovelStoryBlock[];
   currentChoices: NovelChoice[];
+  revealedBlockCount: number;
+  choicesVisible: boolean;
   progress: number;
   status: "playing" | "completed";
   endingSummary?: string;

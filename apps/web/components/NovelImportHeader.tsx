@@ -7,7 +7,7 @@ export default function NovelImportHeader({ backHref = "/", action }: { backHref
   const router = useRouter();
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-zinc-100/80 bg-white/90 px-5 backdrop-blur-xl sm:px-8">
+    <header className="sticky top-0 z-40 flex h-16 flex-none items-center justify-between border-b border-zinc-100/80 bg-white/90 px-5 backdrop-blur-xl sm:px-8">
       <button onClick={() => router.push(backHref)} className="group flex items-center gap-3 text-left">
         <span className="grid h-8 w-8 place-items-center rounded-lg bg-zinc-950 font-serif text-sm font-bold text-white shadow-sm">T</span>
         <span>
@@ -27,4 +27,3 @@ export default function NovelImportHeader({ backHref = "/", action }: { backHref
     </header>
   );
 }
-
