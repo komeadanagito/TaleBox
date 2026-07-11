@@ -32,6 +32,61 @@ body {
   overflow-x: hidden;
 }
 
+/* Imported novel reading surface */
+.novel-reading-paper {
+  background-color: #f8f3e9;
+  background-image:
+    radial-gradient(circle at 18% 12%, rgb(255 255 255 / 62%) 0, transparent 28%),
+    radial-gradient(circle at 80% 62%, rgb(116 91 55 / 3%) 0, transparent 34%),
+    repeating-linear-gradient(0deg, rgb(90 70 44 / 1.5%) 0, rgb(90 70 44 / 1.5%) 1px, transparent 1px, transparent 4px);
+}
+
+@keyframes novel-block-reveal {
+  from { opacity: 0; transform: translateY(8px); filter: blur(2px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+.novel-block-reveal {
+  animation: novel-block-reveal 420ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@keyframes novel-continue-breathe {
+  0%, 100% { opacity: .55; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(3px); }
+}
+
+.novel-continue-mark {
+  animation: novel-continue-breathe 1.8s ease-in-out infinite;
+}
+
+.novel-width-slider {
+  height: 2px;
+  cursor: pointer;
+  appearance: none;
+  border-radius: 999px;
+  background: #cfc3b3;
+  accent-color: #51483e;
+}
+
+.novel-width-slider::-webkit-slider-thumb {
+  width: 13px;
+  height: 13px;
+  appearance: none;
+  border: 2px solid #f8f3e9;
+  border-radius: 999px;
+  background: #51483e;
+  box-shadow: 0 1px 5px rgb(73 58 38 / 22%);
+}
+
+.novel-width-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #f8f3e9;
+  border-radius: 999px;
+  background: #51483e;
+  box-shadow: 0 1px 5px rgb(73 58 38 / 22%);
+}
+
 /* Animations */
 @keyframes spin-slow {
   from {
@@ -72,6 +127,306 @@ body {
 
 .animate-float-subtle {
   animation: float-subtle 4s ease-in-out infinite;
+}
+
+/* ==========================================
+   Chapter page turn, settlement & story ending
+   ========================================== */
+
+@keyframes page-turn-overlay-in {
+  0% { background-color: rgb(238 231 217 / 0%); }
+  18% { background-color: rgb(238 231 217 / 78%); }
+  100% { background-color: #eee7d9; }
+}
+
+@keyframes page-turn-leaf {
+  0%, 17% {
+    opacity: 1;
+    transform: rotateY(0deg) translateZ(0);
+  }
+  28% { transform: rotateY(-10deg) translateZ(8px); }
+  58% { transform: rotateY(-88deg) translateZ(14px); }
+  82% {
+    opacity: 1;
+    transform: rotateY(-158deg) translateZ(5px);
+  }
+  100% {
+    opacity: 0;
+    transform: rotateY(-179.5deg) translateZ(0);
+  }
+}
+
+@keyframes page-turn-left-fade {
+  0%, 52% { opacity: 1; }
+  78%, 100% { opacity: 0; }
+}
+
+@keyframes page-turn-reveal {
+  0%, 55% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  78%, 100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes page-turn-ink {
+  0%, 4% { opacity: 0; transform: scaleX(0); }
+  9% { opacity: 1; transform: scaleX(0); }
+  20%, 28% { opacity: 1; transform: scaleX(1); }
+  40%, 100% { opacity: 0; transform: scaleX(1); }
+}
+
+@keyframes page-turn-spine {
+  0%, 25% { opacity: 0.15; }
+  58% { opacity: 0.7; }
+  100% { opacity: 0.2; }
+}
+
+.page-turn-overlay {
+  --page-turn-duration: 880ms;
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  padding: clamp(1rem, 4vw, 3rem);
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  cursor: wait;
+  animation: page-turn-overlay-in var(--page-turn-duration) linear both;
+}
+
+.page-turn-frame {
+  position: relative;
+  width: min(62rem, calc(100vw - 2rem));
+  height: min(38rem, calc(100dvh - 4rem));
+  min-height: 20rem;
+  perspective: 1800px;
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 28px 38px rgb(68 48 22 / 18%));
+}
+
+.page-turn-next-page,
+.page-turn-left-page,
+.page-turn-leaf {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 1px solid rgb(120 102 72 / 16%);
+}
+
+.page-turn-next-page {
+  inset-inline: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, transparent 49.8%, rgb(83 62 35 / 8%) 50%, transparent 50.6%),
+    linear-gradient(100deg, rgb(255 255 255 / 45%), transparent 30%),
+    #fbf7ef;
+}
+
+.page-turn-reveal-mark {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  padding: 2rem;
+  text-align: center;
+  color: #40382d;
+  animation: page-turn-reveal var(--page-turn-duration) cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.page-turn-reveal-mark strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.8rem, 5vw, 3.6rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.page-turn-kicker,
+.page-turn-subtitle {
+  font-size: 0.68rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: #8a7962;
+}
+
+.page-turn-left-page {
+  left: 0;
+  width: 50%;
+  z-index: 2;
+  border-radius: 10px 0 0 10px;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 45%), transparent 72%),
+    linear-gradient(270deg, rgb(70 50 26 / 8%), transparent 10%),
+    #faf6ed;
+  animation: page-turn-left-fade var(--page-turn-duration) ease-out both;
+}
+
+.page-turn-running-title,
+.page-turn-page-number {
+  position: absolute;
+  color: rgb(100 87 70 / 56%);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+}
+
+.page-turn-running-title { top: 1.5rem; left: 1.75rem; }
+.page-turn-page-number { bottom: 1.5rem; left: 50%; }
+
+.page-turn-leaf {
+  left: 50%;
+  z-index: 4;
+  width: 50%;
+  border-radius: 0 10px 10px 0;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+  animation: page-turn-leaf var(--page-turn-duration) cubic-bezier(.45, .05, .16, 1) both;
+}
+
+.page-turn-leaf-front,
+.page-turn-leaf-back {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  backface-visibility: hidden;
+}
+
+.page-turn-leaf-front {
+  background:
+    linear-gradient(105deg, transparent 55%, rgb(255 255 255 / 46%) 76%, rgb(66 48 27 / 10%)),
+    #f9f4e9;
+}
+
+.page-turn-leaf-front::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6rem;
+  height: 6rem;
+  background: linear-gradient(225deg, rgb(91 69 42 / 14%), transparent 58%);
+}
+
+.page-turn-leaf-back {
+  background:
+    linear-gradient(270deg, rgb(77 56 31 / 12%), transparent 13%),
+    #f6efe2;
+  transform: rotateY(180deg);
+}
+
+.page-turn-writing-lines {
+  position: absolute;
+  inset: 22% 14% auto 14%;
+  display: grid;
+  gap: 1.2rem;
+}
+
+.page-turn-writing-lines span {
+  display: block;
+  height: 1px;
+  background: linear-gradient(90deg, rgb(82 71 57 / 28%), rgb(82 71 57 / 9%));
+}
+
+.page-turn-writing-lines .page-turn-last-line { width: 62%; }
+
+.page-turn-ink-mark {
+  position: absolute;
+  right: 14%;
+  bottom: 22%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #5a5043;
+}
+
+.page-turn-ink-mark span {
+  display: block;
+  width: min(10rem, 24vw);
+  height: 1.5px;
+  background: #5a5043;
+  transform-origin: left center;
+  animation: page-turn-ink var(--page-turn-duration) ease-out both;
+}
+
+.page-turn-spine {
+  position: absolute;
+  inset-block: 0;
+  left: calc(50% - 1rem);
+  z-index: 6;
+  width: 2rem;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgb(54 40 22 / 18%), transparent);
+  animation: page-turn-spine var(--page-turn-duration) ease-out both;
+}
+
+/* Settlement and ending reveals */
+@keyframes settle-slide-up {
+  0%   { opacity: 0; transform: translateY(24px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.settle-card-1 { animation: settle-slide-up 0.55s ease-out 0.1s both; }
+.settle-card-2 { animation: settle-slide-up 0.55s ease-out 0.22s both; }
+.settle-card-3 { animation: settle-slide-up 0.55s ease-out 0.35s both; }
+.settle-card-4 { animation: settle-slide-up 0.55s ease-out 0.48s both; }
+.settle-card-5 { animation: settle-slide-up 0.55s ease-out 0.60s both; }
+
+.chapter-complete-paper,
+.story-ending-paper {
+  background-image:
+    radial-gradient(circle at 18% 12%, rgb(255 255 255 / 55%), transparent 28%),
+    repeating-linear-gradient(0deg, rgb(96 72 42 / 1.5%) 0, rgb(96 72 42 / 1.5%) 1px, transparent 1px, transparent 4px);
+}
+
+.story-ending-reveal { animation: settle-slide-up 0.6s ease-out 0.08s both; }
+.story-ending-card { animation: settle-slide-up 0.55s ease-out 0.24s both; }
+
+@keyframes page-turn-reduced {
+  from { opacity: 0; background-color: rgb(238 231 217 / 0%); }
+  to { opacity: 1; background-color: #eee7d9; }
+}
+
+@keyframes page-leaf-reduced {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-turn-overlay {
+    --page-turn-duration: 160ms;
+    animation-name: page-turn-reduced;
+    animation-timing-function: ease-out;
+  }
+
+  .page-turn-leaf {
+    animation-name: page-leaf-reduced;
+    animation-timing-function: ease-out;
+  }
+
+  .page-turn-left-page { animation: page-leaf-reduced var(--page-turn-duration) ease-out both; }
+  .page-turn-reveal-mark { animation: page-turn-reveal var(--page-turn-duration) ease-out both; }
+  .page-turn-ink-mark,
+  .page-turn-spine { display: none; }
+
+  .settle-card-1,
+  .settle-card-2,
+  .settle-card-3,
+  .settle-card-4,
+  .settle-card-5,
+  .story-ending-reveal,
+  .story-ending-card {
+    animation: none;
+  }
 }
 
 /* Custom Scrollbar */
@@ -131,4 +486,263 @@ body {
 .glow-btn:hover::after {
   left: 125%;
   opacity: 1;
+}
+
+/* ==========================================
+   3D Bookshelf & Interactive Book Styling
+   ========================================== */
+
+:root {
+  --book-depth: 140px;
+  --book-height: 220px;
+  --book-width: 36px;
+}
+
+/* Perspective Helpers */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.perspective-2000 {
+  perspective: 2000px;
+}
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+/* 3D Shelf Container */
+.bookshelf-row {
+  position: relative;
+  margin-bottom: 4rem;
+}
+
+.bookshelf-board {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 16px;
+  pointer-events: none;
+  z-index: 10;
+  transform-style: preserve-3d;
+}
+
+/* White Oak surface with 3D top face */
+.bookshelf-surface {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, #f3e5d3, #edd6bd, #e2cbb1);
+  border-top: 1px solid #f9f2e8;
+  border-radius: 4px 4px 0 0;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4), 
+              0 4px 10px rgba(0, 0, 0, 0.04);
+}
+
+/* Frosted Glass front edge */
+.bookshelf-edge {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05),
+              0 2px 4px rgba(0, 0, 0, 0.03);
+}
+
+/* Shelf shadow on the wall below */
+.bookshelf-shadow {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 4%;
+  right: 4%;
+  height: 25px;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0) 70%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 3D Book on the Shelf */
+.shelf-book-item {
+  position: relative;
+  width: var(--book-width);
+  height: var(--book-height);
+  perspective: 800px;
+  z-index: 20;
+}
+
+.shelf-book-3d {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform-origin: left bottom;
+  transform: rotateY(0deg) rotateX(2deg);
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hover state: slide out slightly and swing open like a door */
+.shelf-book-item:hover {
+  z-index: 30;
+}
+
+.shelf-book-item:hover .shelf-book-3d {
+  transform: translateZ(35px) translateY(-8px) rotateY(65deg) rotateX(0deg);
+  box-shadow: -15px 15px 25px rgba(0, 0, 0, 0.12);
+}
+
+/* Spine face (initially facing user) */
+.shelf-book-spine {
+  position: absolute;
+  inset: 0;
+  background: #1e1e24;
+  transform: translateZ(0px);
+  backface-visibility: hidden;
+  border-radius: 2px 0 0 2px;
+  box-shadow: inset 2px 0 4px rgba(255, 255, 255, 0.08),
+              inset -2px 0 4px rgba(0, 0, 0, 0.2);
+  z-index: 5;
+}
+
+/* Front Cover face (on the left side, goes back) */
+.shelf-book-cover {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--book-depth);
+  height: 100%;
+  transform-origin: left;
+  transform: rotateY(-90deg);
+  backface-visibility: hidden;
+  border-radius: 0 3px 3px 0;
+  box-shadow: inset -3px 0 5px rgba(0,0,0,0.1);
+  z-index: 4;
+}
+
+/* Pages side (at the very back) */
+.shelf-book-pages {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 1px;
+  width: var(--book-width);
+  transform: translateZ(calc(-1 * var(--book-depth) + 1px)) rotateY(180deg);
+  backface-visibility: hidden;
+  background: #fbf9f4;
+  background-image: linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px);
+  background-size: 100% 3px;
+  border-left: 1px solid rgba(0,0,0,0.05);
+  border-right: 1px solid rgba(0,0,0,0.05);
+  z-index: 3;
+}
+
+/* Top Pages face (visible from slight top perspective) */
+.shelf-book-top-pages {
+  position: absolute;
+  top: 0;
+  left: 1px;
+  width: calc(100% - 2px);
+  height: var(--book-depth);
+  transform-origin: top;
+  transform: rotateX(90deg);
+  backface-visibility: hidden;
+  background: #f2ebd9;
+  background-image: linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
+  background-size: 3px 100%;
+  box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
+  z-index: 2;
+}
+
+/* Bottom shadow for the book */
+.shelf-book-shadow {
+  position: absolute;
+  bottom: -4px;
+  left: 10%;
+  width: 80%;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  filter: blur(3px);
+  border-radius: 50%;
+  opacity: 0.8;
+  transition: all 0.45s ease;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.shelf-book-item:hover .shelf-book-shadow {
+  transform: translateZ(35px) scale(1.1);
+  opacity: 0.4;
+  filter: blur(5px);
+}
+
+/* ==========================================
+   Book Opening Modal 3D Transition
+   ========================================== */
+
+/* 3D Book Layout inside modal */
+.modal-book-container {
+  position: relative;
+  height: 480px;
+  transition: width 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+  transform-style: preserve-3d;
+}
+
+.modal-book-left {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  background: #fdfcf9;
+  border-right: 1px solid #efe8da;
+  box-shadow: inset -10px 0 20px rgba(0, 0, 0, 0.02),
+              -5px 10px 30px rgba(0, 0, 0, 0.08);
+  border-radius: 8px 0 0 8px;
+}
+
+.modal-book-right {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  background: #fdfcf9;
+  box-shadow: inset 10px 0 20px rgba(0, 0, 0, 0.02),
+              5px 10px 30px rgba(0, 0, 0, 0.08);
+  border-radius: 0 8px 8px 0;
+}
+
+.modal-book-cover-flipper {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+  z-index: 30;
+}
+
+.modal-book-cover-flipper.flipped {
+  transform: rotateY(-180deg);
+}
+
+.modal-book-spine-hinge {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
+  z-index: 40;
 }

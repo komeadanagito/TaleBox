@@ -104,7 +104,11 @@ export default function CreateStoryPage() {
       const res = data.result;
       setGeneratedFramework({
         title: res.title,
+        genre: res.genre,
         worldView: res.worldView,
+        narrativeTone: res.narrativeTone,
+        coreConflict: res.coreConflict,
+        chapterGoal: res.chapterGoal,
         characters: res.characters,
         scenes: res.scenes,
         items: res.items

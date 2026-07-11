@@ -81,6 +81,10 @@ export async function POST(req: NextRequest) {
 
     const storyTitle = parsedOutline.title;
     const storyWorldView = parsedOutline.worldView;
+    const storyGenre = parsedOutline.genre || genre;
+    const storyNarrativeTone = parsedOutline.narrativeTone || "";
+    const storyCoreConflict = parsedOutline.coreConflict || "";
+    const storyChapter1Goal = parsedOutline.chapter1Goal || "";
 
     // ==========================================
     // 阶段 2：小说角色塑造 (Character Builder Agent)
@@ -92,7 +96,7 @@ export async function POST(req: NextRequest) {
 
     const charPrompt = charTemplate
       .replace("{{TITLE}}", storyTitle)
-      .replace("{{GENRE}}", genre)
+      .replace("{{GENRE}}", storyGenre)
       .replace("{{WORLD_VIEW}}", storyWorldView);
 
     const charRes = await fetch(`${baseUrl}/chat/completions`, {
@@ -124,10 +128,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to load item-designer.md prompt template." }, { status: 500 });
     }
 
-    const charListContext = storyCharacters.map((c: any) => `- ${c.name} (${c.role}): ${c.persona}`).join("\n");
+    const charListContext = storyCharacters.map((c: any) => `- ${c.name} (${c.role}，${c.age || "年龄未设定"}，${c.gender === "female" ? "女" : c.gender === "male" ? "男" : "性别未设定"}，与主角关系：${c.relationshipToProtagonist || "未设定"}): 外显性格：${c.personality || c.persona || "未设定"}；内心秘密：${c.secret || "未设定"}`).join("\n");
     const itemPrompt = itemTemplate
       .replace("{{TITLE}}", storyTitle)
-      .replace("{{GENRE}}", genre)
+      .replace("{{GENRE}}", storyGenre)
       .replace("{{WORLD_VIEW}}", storyWorldView)
       .replace("{{CHARACTER_LIST}}", charListContext);
 
@@ -166,7 +170,7 @@ export async function POST(req: NextRequest) {
     const itemListContext = storyItems.map((i: any) => `- 【${i.name}】: ${i.description}`).join("\n");
     const scenePrompt = sceneTemplate
       .replace("{{TITLE}}", storyTitle)
-      .replace("{{GENRE}}", genre)
+      .replace("{{GENRE}}", storyGenre)
       .replace("{{WORLD_VIEW}}", storyWorldView)
       .replace("{{CHARACTER_LIST}}", charListContext)
       .replace("{{ITEM_LIST}}", itemListContext);
@@ -195,7 +199,11 @@ export async function POST(req: NextRequest) {
     // Combine all modular outputs into a single framework payload
     const finalizedFramework = {
       title: storyTitle,
+      genre: storyGenre,
       worldView: storyWorldView,
+      narrativeTone: storyNarrativeTone,
+      coreConflict: storyCoreConflict,
+      chapterGoal: parsedScenes.chapter1Goal || storyChapter1Goal,
       characters: storyCharacters,
       items: storyItems,
       scenes: parsedScenes.scenes,

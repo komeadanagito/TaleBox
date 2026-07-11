@@ -1,10 +1,24 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect as useScrollEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Box, Laptop } from "lucide-react";
+import { Send, Box, Laptop, PanelLeftClose, PanelLeftOpen, BookOpen } from "lucide-react";
 import { useStory, Message } from "../context/StoryContext";
 import ChatBubble from "../../components/ChatBubble";
+import PageTurnTransition, { PageTurnDestination } from "../../components/PageTurnTransition";
+import ChapterCompleteOverlay from "../../components/ChapterCompleteOverlay";
+import StoryEndingOverlay from "../../components/StoryEndingOverlay";
+
+type ChapterClosureSource = "reader" | "narrative";
+
+interface PendingCompletion {
+  destination: PageTurnDestination;
+  source: ChapterClosureSource;
+  summary: string;
+  transitions: any;
+  endingTitle?: string;
+  endingSummary?: string;
+}
 
 export default function DialoguePage() {
   const router = useRouter();
@@ -14,7 +28,14 @@ export default function DialoguePage() {
     chatMessages,
     setChatMessages,
     dialogueSuggestions,
-    setDialogueSuggestions
+    setDialogueSuggestions,
+    storyCurrentChapter: currentChapterNumber,
+    setStoryCurrentChapter: setCurrentChapterNumber,
+    storyChapters,
+    storyStatus,
+    storyEnding,
+    saveChapterRecord,
+    completeStory,
   } = useStory();
 
   const [userInput, setUserInput] = useState<string>("");
@@ -24,32 +45,39 @@ export default function DialoguePage() {
   const [showChapterCompleteOverlay, setShowChapterCompleteOverlay] = useState<boolean>(false);
   const [chapterSummary, setChapterSummary] = useState<string>("");
   const [pendingTransitions, setPendingTransitions] = useState<any>(null);
-  const [currentChapterNumber, setCurrentChapterNumber] = useState<number>(1);
+  // Note: currentChapterNumber is now driven by StoryContext (storyCurrentChapter)
   // Next chapter data: pre-generated in background while settlement screen is shown
   const [nextChapterData, setNextChapterData] = useState<any>(null);
   const [isGeneratingNextChapter, setIsGeneratingNextChapter] = useState<boolean>(false);
+  const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
+  const [isSuggestionsExpanded, setIsSuggestionsExpanded] = useState<boolean>(false);
+  const [pageTurnPhase, setPageTurnPhase] = useState<"idle" | "turning" | "settled">("idle");
+  const [pendingCompletion, setPendingCompletion] = useState<PendingCompletion | null>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const nextChapterAbortRef = useRef<AbortController | null>(null);
+  const pageTurnLockRef = useRef(false);
 
-  // Background pre-generate next chapter data when settlement screen appears
+  // Streaming updates arrive frequently. Instant scrolling keeps the latest text
+  // visible without repeatedly restarting a smooth-scroll animation.
+  useScrollEffect(() => {
+    chatBottomRef.current?.scrollIntoView({
+      behavior: isAIResponding ? "auto" : "smooth"
+    });
+  }, [chatMessages, isAIResponding]);
+
+  // New AI suggestions start compact so they do not displace the story text.
   React.useEffect(() => {
-    if (!showChapterCompleteOverlay || !generatedFramework) return;
-    setIsGeneratingNextChapter(true);
-    setNextChapterData(null);
-    fetch("/api/generate-chapter", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        framework: generatedFramework,
-        chapterSummary,
-        characterTransitions: pendingTransitions
-      })
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.result) setNextChapterData(data.result);
-      })
-      .catch((e) => console.error("Background chapter gen failed:", e))
-      .finally(() => setIsGeneratingNextChapter(false));
-  }, [showChapterCompleteOverlay]);
+    setIsSuggestionsExpanded(false);
+  }, [dialogueSuggestions]);
+
+
+  useScrollEffect(() => {
+    return () => {
+      streamAbortRef.current?.abort();
+      nextChapterAbortRef.current?.abort();
+    };
+  }, []);
 
   // If no story setup exists, redirect back to creation root inside useEffect
   React.useEffect(() => {
@@ -62,11 +90,82 @@ export default function DialoguePage() {
     return null;
   }
 
+  const isOverlayVisible =
+    pageTurnPhase === "turning" ||
+    showChapterCompleteOverlay ||
+    (storyStatus === "completed" && Boolean(storyEnding));
+
+  const prepareNextChapter = async (summary: string, transitions: any) => {
+    nextChapterAbortRef.current?.abort();
+    const abortController = new AbortController();
+    nextChapterAbortRef.current = abortController;
+    setIsGeneratingNextChapter(true);
+    setNextChapterData(null);
+
+    try {
+      const response = await fetch("/api/generate-chapter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          framework: generatedFramework,
+          chapterSummary: summary,
+          characterTransitions: transitions || { leave: [], enter: [] },
+          chapterNumber: currentChapterNumber,
+        }),
+        signal: abortController.signal,
+      });
+      if (!response.ok) throw new Error("Failed to prepare the next chapter");
+      const data = await response.json();
+      if (nextChapterAbortRef.current === abortController && data.result) {
+        setNextChapterData(data.result);
+      }
+    } catch (error: any) {
+      if (error?.name !== "AbortError") {
+        console.error("Background chapter generation failed:", error);
+      }
+    } finally {
+      if (nextChapterAbortRef.current === abortController) {
+        nextChapterAbortRef.current = null;
+        setIsGeneratingNextChapter(false);
+      }
+    }
+  };
+
+  const beginPageTurn = (completion: PendingCompletion) => {
+    if (pageTurnLockRef.current || pageTurnPhase === "turning" || storyStatus === "completed") return;
+    pageTurnLockRef.current = true;
+    setChapterSummary(completion.summary);
+    setPendingTransitions(completion.transitions || null);
+    setPendingCompletion(completion);
+    setDialogueSuggestions([]);
+    setPageTurnPhase("turning");
+
+    if (completion.destination === "chapter") {
+      void prepareNextChapter(completion.summary, completion.transitions);
+    }
+  };
+
+  // Keep the force-end capability, but present it as a neutral story action.
+  const handleForceChapterEnd = () => {
+    if (pageTurnPhase !== "idle" || storyStatus === "completed") return;
+    streamAbortRef.current?.abort();
+    setIsAIResponding(false);
+
+    const completion: PendingCompletion = pendingCompletion || {
+      destination: "chapter",
+      source: "reader",
+      summary: chapterSummary || `第 ${currentChapterNumber} 章在此落笔，未尽的线索与情绪将随故事继续向前。`,
+      transitions: pendingTransitions || null,
+    };
+
+    beginPageTurn({ ...completion, source: "reader" });
+  };
+
   // Send dialogue message to Server API and read the text stream chunk-by-chunk
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const cleanInput = userInput.trim();
-    if (!cleanInput || isAIResponding) return;
+    if (!cleanInput || isAIResponding || pendingCompletion || pageTurnPhase !== "idle" || storyStatus === "completed") return;
 
     // 1. Append user message
     const userMsg: Message = {
@@ -91,7 +190,9 @@ export default function DialoguePage() {
       }
     ]);
 
+    const abortCtrl = new AbortController();
     try {
+      streamAbortRef.current = abortCtrl;
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -99,10 +200,11 @@ export default function DialoguePage() {
           framework: generatedFramework,
           messages: nextMessages,
           userInput: cleanInput,
-          tone: activeTone
-        })
+          tone: activeTone,
+          chapterNumber: currentChapterNumber,
+        }),
+        signal: abortCtrl.signal
       });
-
       if (!response.ok) {
         throw new Error("API request failed");
       }
@@ -122,9 +224,30 @@ export default function DialoguePage() {
         const chunk = decoder.decode(value, { stream: true });
         fullText += chunk;
 
-        // Split text at "---" to separate novel text from metadata block
-        const parts = fullText.split("---");
-        const novelText = parts[0]?.trim() || "";
+        // Robust real-time split: search for "---" or metadata markers
+        let novelText = chunk;
+        const lowerFullText = fullText.toLowerCase();
+        const splitIndex = fullText.indexOf("---");
+
+        if (splitIndex !== -1) {
+          novelText = fullText.substring(0, splitIndex).trim();
+        } else {
+          // If model skipped "---", find first appearance of suggestions/state_patch
+          const sugIdx = lowerFullText.indexOf("[suggestions]");
+          const patchIdx = lowerFullText.indexOf("[state_patch]");
+          let markerIdx = -1;
+          if (sugIdx !== -1 && patchIdx !== -1) {
+            markerIdx = Math.min(sugIdx, patchIdx);
+          } else {
+            markerIdx = sugIdx !== -1 ? sugIdx : patchIdx;
+          }
+
+          if (markerIdx !== -1) {
+            novelText = fullText.substring(0, markerIdx).trim();
+          } else {
+            novelText = fullText.trim();
+          }
+        }
 
         // Update the temporary AI message content in real time
         setChatMessages((prev) =>
@@ -172,7 +295,17 @@ export default function DialoguePage() {
         }
       }
 
-      setDialogueSuggestions(suggestions);
+      const hasReachedEnding = Boolean(statePatch?.chapterCompleted);
+
+      // If AI returned no suggestions during an active chapter, use safe defaults.
+      if (!hasReachedEnding && suggestions.length === 0) {
+        suggestions = [
+          "继续深入追问，要求对方给出明确答复。",
+          "保持沉默，静静观察对方的神态变化。",
+          "转换话题，从另一个角度切入核心问题。"
+        ];
+      }
+      setDialogueSuggestions(hasReachedEnding ? [] : suggestions);
 
       // Apply numerical state patch updates if exists
       if (statePatch) {
@@ -235,17 +368,40 @@ export default function DialoguePage() {
           });
         }
 
-        // 4. Update chapter completion triggers
-        if (statePatch.chapterCompleted) {
-          setChapterSummary(statePatch.chapterSummary || "这一章节的探险目标已达成。");
+        // 4. Queue the ending and let the reader reveal the final paragraphs first.
+        if (statePatch.storyCompleted && statePatch.chapterCompleted) {
+          const summary = statePatch.chapterSummary || statePatch.endingSummary || "故事的核心矛盾已经落定。";
+          setChapterSummary(summary);
+          setPendingTransitions(null);
+          setPendingCompletion({
+            destination: "story",
+            source: "narrative",
+            summary,
+            transitions: null,
+            endingTitle: statePatch.endingTitle || "你的故事，已在这里圆满落笔",
+            endingSummary: statePatch.endingSummary || summary,
+          });
+        } else if (statePatch.chapterCompleted) {
+          const summary = statePatch.chapterSummary || "这一章节的探险目标已达成。";
+          setChapterSummary(summary);
           setPendingTransitions(statePatch.characterTransitions || null);
-          setShowChapterCompleteOverlay(true); // 触发电影级全屏拉幕
+          setPendingCompletion({
+            destination: "chapter",
+            source: "narrative",
+            summary,
+            transitions: statePatch.characterTransitions || null,
+          });
         }
         
         setGeneratedFramework(nextFramework);
       }
 
     } catch (err: any) {
+      // If the stream was aborted by handleForceChapterEnd, silently discard the temp message
+      if (err?.name === 'AbortError') {
+        setChatMessages((prev) => prev.filter((msg) => msg.id !== aiTempId));
+        return;
+      }
       console.error("Streaming error:", err);
       // Clean up empty AI message on failure and push fallback
       setChatMessages((prev) => prev.filter((msg) => msg.id !== aiTempId));
@@ -260,6 +416,9 @@ export default function DialoguePage() {
         }
       ]);
     } finally {
+      if (streamAbortRef.current === abortCtrl) {
+        streamAbortRef.current = null;
+      }
       setIsAIResponding(false);
     }
   };
@@ -274,6 +433,31 @@ export default function DialoguePage() {
     if (revealedParagraphsCount < paragraphs.length) {
       setRevealedParagraphsCount((prev) => prev + 1);
     }
+  };
+
+  const handlePageTurnComplete = () => {
+    if (pageTurnPhase !== "turning" || !pendingCompletion) return;
+    setPageTurnPhase("settled");
+
+    if (pendingCompletion.destination === "story") {
+      const completedAt = new Date().toISOString();
+      saveChapterRecord({
+        number: currentChapterNumber,
+        summary: pendingCompletion.summary,
+        completedAt,
+      });
+      completeStory({
+        chapterNumber: currentChapterNumber,
+        title: pendingCompletion.endingTitle || "你的故事，已在这里圆满落笔",
+        summary: pendingCompletion.endingSummary || pendingCompletion.summary,
+        completedAt,
+      });
+      setShowChapterCompleteOverlay(false);
+      pageTurnLockRef.current = false;
+      return;
+    }
+
+    setShowChapterCompleteOverlay(true);
   };
 
   // Perform cinematic timeline transition to next chapter
@@ -310,11 +494,24 @@ export default function DialoguePage() {
       if (chapterData.newItems && chapterData.newItems.length > 0) {
         nextFramework.items = [...(nextFramework.items || []), ...chapterData.newItems];
       }
+      // Update chapter goal for the new chapter so orchestrator can judge chapter completion
+      if (chapterData.nextChapterGoal) {
+        nextFramework.chapterGoal = chapterData.nextChapterGoal;
+      }
     }
 
     setGeneratedFramework(nextFramework);
 
-    // 3. Increment chapter count and reset dialogue state
+    // 3. Persist completed chapter record before incrementing
+    if (chapterSummary) {
+      saveChapterRecord({
+        number: currentChapterNumber,
+        summary: chapterSummary,
+        completedAt: new Date().toISOString(),
+      });
+    }
+
+    // 4. Increment chapter count and reset dialogue state
     const nextChapter = currentChapterNumber + 1;
     setCurrentChapterNumber(nextChapter);
     setChatMessages([]);
@@ -323,6 +520,10 @@ export default function DialoguePage() {
     setPendingTransitions(null);
     setNextChapterData(null);
     setRevealedParagraphsCount(1);
+    setPageTurnPhase("idle");
+    setPendingCompletion(null);
+    pageTurnLockRef.current = false;
+    setShowChapterCompleteOverlay(false);
 
     // 4. Use pre-generated opening narrative if available; otherwise fallback to API stream
     const openingText = chapterData?.openingNarrative;
@@ -349,7 +550,8 @@ export default function DialoguePage() {
             framework: nextFramework,
             messages: [{ id: `msg_tr_${Date.now()}`, role: "user", content: transitionMsg }],
             userInput: transitionMsg,
-            tone: "章节切换"
+            tone: "章节切换",
+            chapterNumber: nextChapter,
           })
         });
 
@@ -385,9 +587,14 @@ export default function DialoguePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fcfcfc] text-[#18181b] flex flex-col font-sans selection:bg-neutral-100 selection:text-neutral-900">
+    <>
+      <div
+        className="min-h-dvh bg-[#fcfcfc] text-[#18181b] flex flex-col font-sans selection:bg-neutral-100 selection:text-neutral-900"
+        inert={isOverlayVisible}
+        aria-hidden={isOverlayVisible || undefined}
+      >
       {/* Upper Navigation Bar */}
-      <header className="h-16 px-8 border-b border-neutral-100/80 bg-white/70 backdrop-blur-md flex items-center justify-between sticky top-0 z-50">
+      <header className="h-14 px-6 md:px-8 border-b border-neutral-100/80 bg-white/70 backdrop-blur-md flex items-center justify-between sticky top-0 z-50">
         <div 
           onClick={() => router.push("/")}
           className="flex items-center gap-3 cursor-pointer group active:scale-98 transition-all"
@@ -398,21 +605,30 @@ export default function DialoguePage() {
             TaleBox <span className="text-xs font-normal text-zinc-400 font-sans ml-1">Draft Workshop</span>
           </h1>
         </div>
-        <div className="flex items-center gap-6 text-sm text-zinc-500">
+        <div className="flex items-center gap-3 text-sm text-zinc-500">
           <span className="hover:text-zinc-900 transition-colors flex items-center gap-1.5 font-medium cursor-pointer">
             <Laptop className="h-4 w-4" />
             <span>极简白色版</span>
           </span>
+          <button
+            type="button"
+            onClick={() => setIsFocusMode((value) => !value)}
+            aria-pressed={isFocusMode}
+            className="hidden md:flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:border-neutral-900 hover:text-zinc-950"
+          >
+            {isFocusMode ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
+            <span>{isFocusMode ? "退出专注" : "专注阅读"}</span>
+          </button>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 w-full max-w-6xl mx-auto px-6 py-6 flex flex-col items-center justify-center">
-        <div className="w-full max-w-5xl lg:max-w-6xl h-[82vh] bg-white rounded-2xl border border-neutral-200/60 subtle-shadow flex overflow-hidden">
+      <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 md:px-6 py-3 flex flex-col items-center justify-center">
+        <div className={`w-full h-[calc(100dvh-8rem)] min-h-[480px] bg-white rounded-2xl border border-neutral-200/60 subtle-shadow flex overflow-hidden ${isFocusMode ? "md:h-[calc(100dvh-5rem)]" : ""}`}>
           
           {/* Left Context Side Panel */}
-          <aside className="w-64 border-r border-neutral-100/80 bg-zinc-50/50 p-5 flex flex-col justify-between hidden md:flex">
-            <div className="space-y-6">
+          <aside className={isFocusMode ? "hidden" : "w-60 border-r border-neutral-100/80 bg-zinc-50/50 p-4 flex-col justify-between hidden md:flex"}>
+            <div className="space-y-4">
               <div>
                 <span className="text-[10px] text-zinc-400 font-medium tracking-wider uppercase block">正在阅读故事</span>
                 <h3 className="text-sm font-semibold font-serif text-zinc-950 mt-1">《{generatedFramework.title}》</h3>
@@ -434,7 +650,7 @@ export default function DialoguePage() {
                         <span className="text-xs font-bold font-serif">{protagonist.name}</span>
                       </div>
                       <p className="text-[10px] text-zinc-300 line-clamp-1">{protagonist.role}</p>
-                      <p className="text-[9px] text-zinc-400 font-serif leading-relaxed line-clamp-2">{protagonist.persona}</p>
+                      <p className="text-[9px] text-zinc-400 font-serif leading-relaxed line-clamp-2">{protagonist.personality || protagonist.persona || "暂无性格设定"}</p>
                     </div>
                   </div>
                 );
@@ -488,22 +704,32 @@ export default function DialoguePage() {
               </div>
             </div>
 
-            {/* Reset Actions */}
-            <button 
-              onClick={() => {
-                router.push("/bookshelf");
-              }}
-              className="w-full py-2 bg-white border border-neutral-200 hover:border-neutral-900 hover:bg-neutral-50 rounded-lg text-xs font-medium transition-all text-zinc-600 shadow-sm"
-            >
-              <span>返回小说书架</span>
-            </button>
+            {/* Chapter Actions */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleForceChapterEnd}
+                disabled={pageTurnPhase !== "idle" || storyStatus === "completed"}
+                title="根据当前进展收束本章"
+                className="w-full py-2.5 bg-neutral-900 text-white hover:bg-neutral-800 disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed rounded-lg text-xs font-semibold transition-all shadow-sm flex items-center justify-center gap-1.5 active:scale-95"
+              >
+                <BookOpen className="h-3.5 w-3.5" strokeWidth={1.7} />
+                <span>在此翻篇</span>
+              </button>
+              <button
+                onClick={() => { router.push("/bookshelf"); }}
+                className="w-full py-2 bg-white border border-neutral-200 hover:border-neutral-900 hover:bg-neutral-50 rounded-lg text-xs font-medium transition-all text-zinc-600 shadow-sm"
+              >
+                <span>返回小说书架</span>
+              </button>
+            </div>
           </aside>
 
           {/* Chat Box Panel */}
           <section className="flex-1 flex flex-col justify-between bg-[#faf9f6] h-full relative">
             
             {/* Header */}
-            <header className="h-14 px-8 border-b border-neutral-100/60 bg-[#faf9f6]/95 backdrop-blur-sm flex items-center justify-between sticky top-0 z-10">
+            <header className="h-12 px-6 md:px-8 border-b border-neutral-100/60 bg-[#faf9f6]/95 backdrop-blur-sm flex items-center justify-between sticky top-0 z-10">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-neutral-900 animate-pulse"></span>
                 <span className="text-xs font-bold text-zinc-800 font-serif">{generatedFramework.scenes[0]?.title || "开篇场景"}</span>
@@ -514,7 +740,7 @@ export default function DialoguePage() {
             {/* Dialogue Chat area - clicking this area reveals the next paragraph */}
             <div 
               onClick={handleRevealNext}
-              className="flex-1 overflow-y-auto px-10 py-8 space-y-5 cursor-pointer selection:bg-neutral-200"
+              className={`flex-1 overflow-y-auto space-y-4 cursor-pointer selection:bg-neutral-200 outline-none ${isFocusMode ? "px-8 md:px-16 py-6" : "px-6 md:px-8 py-5"}`}
               title="点击书页空白处可继续阅读"
             >
               {chatMessages.map((msg, idx) => {
@@ -526,6 +752,8 @@ export default function DialoguePage() {
                     key={msg.id} 
                     message={msg} 
                     revealLimit={limit}
+                    isStreaming={isAIResponding && isLastMsg && isAiMsg}
+                    characters={generatedFramework.characters}
                     primaryCharacterAvatar={generatedFramework.characters[0]?.name[0] || "AI"} 
                     protagonistName={generatedFramework.characters.find((c) => c.id === "char_1")?.name}
                   />
@@ -573,26 +801,27 @@ export default function DialoguePage() {
                 return null;
               })()}
 
-              {/* End of Chapter Trigger Button */}
+              {/* Natural chapter/story ending — only offered after the final paragraphs are read. */}
               {(() => {
                 const lastMsg = chatMessages[chatMessages.length - 1];
                 if (!lastMsg || lastMsg.role === "user" || isAIResponding) return null;
                 const paragraphs = lastMsg.content.split("\n\n").filter((p) => p.trim());
-                if (revealedParagraphsCount === paragraphs.length && chapterSummary) {
+                if (revealedParagraphsCount >= paragraphs.length && pendingCompletion) {
+                  const isStoryEnding = pendingCompletion.destination === "story";
                   return (
                     <div className="pt-4 border-t border-dashed border-neutral-200/50 space-y-3 mt-4 animate-fade-in-up">
-                      <span className="text-[10px] text-purple-600 uppercase tracking-wider block font-semibold font-sans animate-pulse">
-                        ✨ 达成当前章节主线终点：
+                      <span className="text-[10px] text-amber-700 uppercase tracking-wider block font-semibold font-sans">
+                        {isStoryEnding ? "故事的最后一行已经写成" : "这一章已抵达句点"}
                       </span>
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setShowChapterCompleteOverlay(true);
+                          beginPageTurn(pendingCompletion);
                         }}
-                        className="w-full text-center p-3.5 text-xs bg-neutral-900 text-white hover:bg-neutral-800 rounded-xl transition-all font-serif font-bold shadow active:scale-99 animate-pulse-subtle"
+                        className="w-full min-h-12 text-center p-3.5 text-xs bg-neutral-900 text-white hover:bg-neutral-800 rounded-xl transition-all font-serif font-bold shadow active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 focus-visible:ring-offset-2"
                       >
-                        🎬 完结本章，进入下一章
+                        {isStoryEnding ? "为故事落笔" : "翻开章末"}
                       </button>
                     </div>
                   );
@@ -600,49 +829,58 @@ export default function DialoguePage() {
                 return null;
               })()}
 
-              {/* Inline Suggestions inside the book page (Only shown when all paragraphs are revealed and chapter is not complete) */}
-              {(() => {
-                const lastMsg = chatMessages[chatMessages.length - 1];
-                const paragraphs = lastMsg && lastMsg.role !== "user" ? lastMsg.content.split("\n\n").filter((p) => p.trim()) : [];
-                const allRevealed = revealedParagraphsCount >= paragraphs.length;
-                if (allRevealed && dialogueSuggestions.length > 0 && !isAIResponding && !chapterSummary) {
-                  return (
-                    <div className="pt-6 border-t border-dashed border-neutral-200/50 space-y-3 animate-fade-in-up mt-4">
-                      <span className="text-[10px] text-zinc-400 uppercase tracking-wider block font-semibold font-sans">
-                        ✦ 抉择下一步行动 / 追问 (Choose your next move):
-                      </span>
-                      <div className="flex flex-col gap-2.5">
+              {/* Scroll anchor - always at the bottom of the chat area */}
+              <div ref={chatBottomRef} className="h-1" />
+            </div>
+
+            {/* === SUGGESTIONS PANEL: Fixed between chat and input, shown ONLY when all paragraphs are revealed === */}
+            {(() => {
+              const lastMsg = chatMessages[chatMessages.length - 1];
+              const paragraphs = lastMsg && lastMsg.role !== "user" ? lastMsg.content.split("\n\n").filter((p) => p.trim()) : [];
+              const allRevealed = revealedParagraphsCount >= paragraphs.length;
+
+              if (allRevealed && dialogueSuggestions.length > 0 && !isAIResponding && !pendingCompletion) {
+                return (
+                  <div className="px-6 md:px-8 py-2 border-t border-neutral-100 bg-[#faf9f6]/95 animate-fade-in-up">
+                    <button
+                      type="button"
+                      onClick={() => setIsSuggestionsExpanded((value) => !value)}
+                      aria-expanded={isSuggestionsExpanded}
+                      className="w-full flex items-center justify-between text-left py-1 text-[10px] text-zinc-400 uppercase tracking-wider font-semibold font-sans hover:text-zinc-700 transition-colors"
+                    >
+                      <span>✦ 抉择下一步行动 · {dialogueSuggestions.length} 个建议</span>
+                      <span>{isSuggestionsExpanded ? "收起" : "展开"}</span>
+                    </button>
+                    {isSuggestionsExpanded && (
+                      <div className="mt-2 flex flex-col gap-1.5">
                         {dialogueSuggestions.map((suggestion, idx) => (
                           <button
                             key={idx}
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setUserInput(suggestion);
-                            }}
-                            className="w-full text-left p-3 text-xs bg-white hover:bg-neutral-900 hover:text-white rounded-xl border border-neutral-200/70 transition-all duration-200 shadow-sm leading-relaxed font-serif active:scale-[0.99] hover:-translate-y-0.5"
+                            onClick={() => setUserInput(suggestion)}
+                            className="w-full text-left px-3 py-2 text-xs bg-white hover:bg-neutral-900 hover:text-white rounded-xl border border-neutral-200/70 transition-all duration-200 shadow-sm leading-relaxed font-serif active:scale-[0.99] hover:-translate-y-0.5"
                           >
-                            <span className="font-mono text-zinc-400 mr-2 group-hover:text-white/60">0{idx + 1}.</span>
+                            <span className="font-mono text-zinc-400 mr-2">0{idx + 1}.</span>
                             {suggestion}
                           </button>
                         ))}
                       </div>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-            </div>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {/* Dialogue inputs only (Very compact footer) */}
-            <div className="p-4 border-t border-neutral-100 bg-[#fafafa]/50">
+            <div className="px-4 md:px-6 py-3 border-t border-neutral-100 bg-[#fafafa]/50">
               {/* Form input with Tone Selector */}
               <form 
                 onSubmit={(e) => {
                   e.preventDefault();
                   handleSendMessage();
                 }} 
-                className="flex flex-col gap-2.5 bg-white p-3.5 rounded-2xl border border-neutral-100 shadow-sm"
+                className="flex flex-col gap-2 bg-white p-3 rounded-2xl border border-neutral-100 shadow-sm"
               >
                 {/* Attitude/Tone Selector */}
                 <div className="flex items-center gap-1.5 border-b border-neutral-50 pb-2 mb-0.5 overflow-x-auto select-none no-scrollbar">
@@ -658,6 +896,7 @@ export default function DialoguePage() {
                       key={t.label}
                       type="button"
                       onClick={() => setActiveTone(t.value)}
+                      disabled={Boolean(pendingCompletion) || pageTurnPhase !== "idle" || storyStatus === "completed"}
                       className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all flex-shrink-0 active:scale-95 ${
                         activeTone === t.value
                           ? "bg-neutral-900 text-white shadow-sm scale-105"
@@ -674,15 +913,15 @@ export default function DialoguePage() {
                     type="text"
                     value={userInput}
                     onChange={(e) => setUserInput(e.target.value)}
-                    disabled={isAIResponding}
-                    placeholder={isAIResponding ? "AI 正在编织命运分支..." : `以【${activeTone.split(" ")[0]}】态度，输入你的选择或对白...`}
-                    className="flex-1 px-4 py-2.5 border border-neutral-200/80 rounded-xl text-xs outline-none bg-white focus:border-neutral-900 disabled:bg-zinc-100 disabled:text-zinc-400 transition-colors shadow-inner font-serif"
+                    disabled={isAIResponding || Boolean(pendingCompletion) || pageTurnPhase !== "idle" || storyStatus === "completed"}
+                    placeholder={pendingCompletion ? "这一章已经落笔，请翻开章末" : isAIResponding ? "AI 正在编织命运分支..." : `以【${activeTone.split(" ")[0]}】态度，输入你的选择或对白...`}
+                    className="flex-1 px-4 py-2 border border-neutral-200/80 rounded-xl text-xs outline-none bg-white focus:border-neutral-900 disabled:bg-zinc-100 disabled:text-zinc-400 transition-colors shadow-inner font-serif"
                   />
                   <button
                     type="submit"
-                    disabled={!userInput.trim() || isAIResponding}
+                    disabled={!userInput.trim() || isAIResponding || Boolean(pendingCompletion) || pageTurnPhase !== "idle" || storyStatus === "completed"}
                     className={`h-9 w-9 rounded-xl flex items-center justify-center transition-all ${
-                      !userInput.trim() || isAIResponding
+                      !userInput.trim() || isAIResponding || Boolean(pendingCompletion) || pageTurnPhase !== "idle" || storyStatus === "completed"
                         ? "bg-zinc-100 text-zinc-300 cursor-not-allowed"
                         : "bg-neutral-900 text-white hover:bg-neutral-800 shadow"
                     }`}
@@ -698,165 +937,41 @@ export default function DialoguePage() {
       </main>
 
       {/* Subtle Footer */}
-      <footer className="py-8 border-t border-neutral-100 bg-white text-center text-[10px] text-zinc-400">
+      <footer className={`py-3 border-t border-neutral-100 bg-white text-center text-[10px] text-zinc-400 ${isFocusMode ? "hidden" : ""}`}>
         TaleBox Interactive Novel Lab © 2026. Made with Premium Minimalism.
       </footer>
 
-      {/* Rich Chapter Settlement Overlay */}
-      {showChapterCompleteOverlay && (
-        <div className="fixed inset-0 bg-neutral-950 text-white z-50 flex flex-col overflow-y-auto">
-          <style>{`
-            @keyframes settle-fade-in {
-              0% { opacity: 0; transform: translateY(16px); }
-              100% { opacity: 1; transform: translateY(0); }
-            }
-            .settle-fade { animation: settle-fade-in 0.6s ease-out forwards; }
-            .settle-fade-2 { animation: settle-fade-in 0.6s ease-out 0.15s both; }
-            .settle-fade-3 { animation: settle-fade-in 0.6s ease-out 0.3s both; }
-            .settle-fade-4 { animation: settle-fade-in 0.6s ease-out 0.45s both; }
-          `}</style>
+      </div>
 
-          {/* Header */}
-          <div className="px-8 pt-12 pb-6 text-center settle-fade">
-            <span className="text-zinc-500 font-mono tracking-widest text-xs uppercase animate-pulse">
-              CHAPTER {currentChapterNumber} · COMPLETE
-            </span>
-            <h2 className="text-3xl md:text-4xl font-serif font-bold text-white tracking-wide mt-3">
-              第 {currentChapterNumber} 章 完结
-            </h2>
-            <div className="w-16 h-px bg-zinc-700 mx-auto mt-6" />
-          </div>
-
-          <div className="flex-1 w-full max-w-3xl mx-auto px-6 pb-16 space-y-6">
-
-            {/* Block 1: Chapter Summary */}
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 settle-fade-2">
-              <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block mb-3">
-                📖 本章大事记 · Chapter Summary
-              </span>
-              <p className="text-sm font-serif leading-relaxed text-zinc-300 text-justify indent-8 tracking-wide">
-                {chapterSummary || "这一章节的探险目标已达成。"}
-              </p>
-            </div>
-
-            {/* Block 2: Character Transitions */}
-            {pendingTransitions && (
-              <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 settle-fade-3">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block mb-4">
-                  🎭 角色动态 · Character Transitions
-                </span>
-                <div className="flex flex-wrap gap-3">
-                  {/* Leaving characters */}
-                  {(pendingTransitions.leave || []).map((charId: string) => {
-                    const char = generatedFramework?.characters.find((c) => c.id === charId);
-                    if (!char) return null;
-                    return (
-                      <div key={charId} className="flex items-start gap-3 bg-zinc-950/60 border border-zinc-700/50 rounded-xl p-3 w-full sm:w-auto sm:flex-1 min-w-[180px]">
-                        <div className="h-9 w-9 rounded-lg bg-zinc-700 flex items-center justify-center text-zinc-300 font-serif font-bold text-sm flex-shrink-0">
-                          {char.name[0]}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-zinc-300 font-serif truncate">{char.name}</span>
-                            <span className="text-[9px] bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded font-mono flex-shrink-0">✕ 告别</span>
-                          </div>
-                          <span className="text-[10px] text-zinc-500 block mt-0.5 truncate">{char.role}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {/* Entering characters */}
-                  {(pendingTransitions.enter || []).map((char: any) => (
-                    <div key={char.id} className="flex items-start gap-3 bg-amber-950/30 border border-amber-800/40 rounded-xl p-3 w-full sm:w-auto sm:flex-1 min-w-[180px]">
-                      <div className="h-9 w-9 rounded-lg bg-amber-800/60 flex items-center justify-center text-amber-200 font-serif font-bold text-sm flex-shrink-0">
-                        {char.name[0]}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-amber-200 font-serif truncate">{char.name}</span>
-                          <span className="text-[9px] bg-amber-800/50 text-amber-300 px-1.5 py-0.5 rounded font-mono flex-shrink-0">★ 登场</span>
-                        </div>
-                        <span className="text-[10px] text-amber-500/80 block mt-0.5 truncate">{char.role}</span>
-                        {char.description && (
-                          <p className="text-[10px] text-zinc-400 mt-1 leading-relaxed line-clamp-2">{char.description}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {(!pendingTransitions.leave?.length && !pendingTransitions.enter?.length) && (
-                    <p className="text-xs text-zinc-500 font-serif">所有角色延续进入下一章。</p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Block 3: Next Chapter Scene & Items Preview */}
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 settle-fade-4">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">
-                  🗺 下一章预告 · Next Chapter Preview
-                </span>
-                {isGeneratingNextChapter && (
-                  <span className="text-[10px] text-zinc-500 font-mono animate-pulse">正在生成中...</span>
-                )}
-              </div>
-              {isGeneratingNextChapter ? (
-                <div className="space-y-2">
-                  <div className="h-3 bg-zinc-800 rounded animate-pulse w-3/4" />
-                  <div className="h-3 bg-zinc-800 rounded animate-pulse w-1/2" />
-                  <div className="h-3 bg-zinc-800 rounded animate-pulse w-2/3" />
-                </div>
-              ) : nextChapterData ? (
-                <div className="space-y-4">
-                  {nextChapterData.newScene ? (
-                    <div className="flex items-start gap-3">
-                      <span className="text-lg">📍</span>
-                      <div>
-                        <span className="text-xs font-bold text-zinc-200 font-serif">新场景：{nextChapterData.newScene.title}</span>
-                        <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">{nextChapterData.newScene.summary}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-3">
-                      <span className="text-lg">📍</span>
-                      <p className="text-xs text-zinc-400 font-serif">剧情将在原场景中继续推进。</p>
-                    </div>
-                  )}
-                  {nextChapterData.newItems?.length > 0 && (
-                    <div className="flex items-start gap-3">
-                      <span className="text-lg">🎒</span>
-                      <div>
-                        <span className="text-xs font-bold text-zinc-200 font-serif">新线索出现：</span>
-                        <div className="mt-2 space-y-1">
-                          {nextChapterData.newItems.map((item: any) => (
-                            <div key={item.id} className="text-[11px] text-zinc-400">
-                              <span className="text-zinc-300 font-medium">【{item.name}】</span> {item.description}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-xs text-zinc-500 font-serif">预告生成失败，将在下一章开始时重新生成。</p>
-              )}
-            </div>
-
-            {/* Action Button */}
-            <div className="pt-4 flex justify-center settle-fade-4">
-              <button
-                type="button"
-                onClick={handleTransitionToNextChapter}
-                disabled={isGeneratingNextChapter}
-                className="px-10 py-3.5 bg-white text-neutral-950 hover:bg-zinc-100 disabled:bg-zinc-700 disabled:text-zinc-400 disabled:cursor-not-allowed rounded-xl text-sm font-serif font-bold tracking-wider transition-all shadow-lg active:scale-95 hover:shadow-xl"
-              >
-                {isGeneratingNextChapter ? "正在准备下一章..." : `开启第 ${currentChapterNumber + 1} 章 ➔`}
-              </button>
-            </div>
-          </div>
-        </div>
+      {pageTurnPhase === "turning" && pendingCompletion && (
+        <PageTurnTransition
+          chapterNumber={currentChapterNumber}
+          destination={pendingCompletion.destination}
+          onComplete={handlePageTurnComplete}
+        />
       )}
-    </div>
+
+      {showChapterCompleteOverlay && (
+        <ChapterCompleteOverlay
+          chapterNumber={currentChapterNumber}
+          summary={chapterSummary}
+          framework={generatedFramework}
+          transitions={pendingTransitions}
+          nextChapterData={nextChapterData}
+          isGeneratingNextChapter={isGeneratingNextChapter}
+          onContinue={handleTransitionToNextChapter}
+          onBackToBookshelf={() => router.push("/bookshelf")}
+        />
+      )}
+
+      {storyStatus === "completed" && storyEnding && (
+        <StoryEndingOverlay
+          framework={generatedFramework}
+          ending={storyEnding}
+          completedChapterCount={storyChapters.length}
+          onBackToBookshelf={() => router.push("/bookshelf")}
+        />
+      )}
+    </>
   );
 }

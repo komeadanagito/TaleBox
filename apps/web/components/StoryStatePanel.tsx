@@ -24,7 +24,11 @@ export default function StoryStatePanel({ onConfirm }: StoryStatePanelProps) {
       id: `char_new_${Date.now()}`,
       name: "新配角",
       role: "故事中的关键NPC",
-      persona: "性格特点与隐秘动机描述...",
+      age: "",
+      gender: "female",
+      relationshipToProtagonist: "",
+      personality: "外显性格与待人方式...",
+      secret: "不愿轻易说出的秘密或心结...",
       speechStyle: "对话风格说明..."
     };
     setGeneratedFramework({
@@ -194,16 +198,79 @@ export default function StoryStatePanel({ onConfirm }: StoryStatePanelProps) {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-zinc-400 font-semibold block">年龄</label>
+                      <input
+                        type="text"
+                        value={char.age ?? ""}
+                        onChange={(e) => {
+                          const newChars = [...generatedFramework.characters];
+                          newChars[index]!.age = e.target.value;
+                          setGeneratedFramework({ ...generatedFramework, characters: newChars });
+                        }}
+                        placeholder="如：16 岁"
+                        className="w-full px-3 py-2 border border-neutral-200 rounded-xl text-xs outline-none focus:border-neutral-900 bg-white transition-colors placeholder:text-zinc-300"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-zinc-400 font-semibold block">性别</label>
+                      <select
+                        value={char.gender ?? ""}
+                        onChange={(e) => {
+                          const newChars = [...generatedFramework.characters];
+                          newChars[index]!.gender = e.target.value === "male" ? "male" : "female";
+                          setGeneratedFramework({ ...generatedFramework, characters: newChars });
+                        }}
+                        className="w-full px-3 py-2 border border-neutral-200 rounded-xl text-xs outline-none focus:border-neutral-900 bg-white transition-colors"
+                      >
+                        <option value="" disabled>请选择</option>
+                        <option value="female">女</option>
+                        <option value="male">男</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-zinc-400 font-semibold block">与主角关系</label>
+                      <input
+                        type="text"
+                        value={char.relationshipToProtagonist ?? ""}
+                        onChange={(e) => {
+                          const newChars = [...generatedFramework.characters];
+                          newChars[index]!.relationshipToProtagonist = e.target.value;
+                          setGeneratedFramework({ ...generatedFramework, characters: newChars });
+                        }}
+                        placeholder={char.id === "char_1" ? "主角（玩家）" : "如：同桌、竞争者"}
+                        className="w-full px-3 py-2 border border-neutral-200 rounded-xl text-xs outline-none focus:border-neutral-900 bg-white transition-colors placeholder:text-zinc-300"
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-1">
-                    <label className="text-[10px] text-zinc-400 font-semibold block">性格特点与内心秘密</label>
+                    <label className="text-[10px] text-zinc-400 font-semibold block">外显性格</label>
                     <textarea
-                      value={char.persona}
+                      value={char.personality ?? char.persona ?? ""}
                       onChange={(e) => {
                         const newChars = [...generatedFramework.characters];
-                        newChars[index]!.persona = e.target.value;
+                        newChars[index]!.personality = e.target.value;
                         setGeneratedFramework({ ...generatedFramework, characters: newChars });
                       }}
-                      rows={3}
+                      rows={2}
+                      placeholder="如：安静克制，习惯先观察再回应。"
+                      className="w-full p-3 border border-neutral-200 rounded-xl text-xs leading-relaxed outline-none focus:border-neutral-900 bg-white transition-colors placeholder:text-zinc-300"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-zinc-400 font-semibold block">内心秘密</label>
+                    <textarea
+                      value={char.secret ?? ""}
+                      onChange={(e) => {
+                        const newChars = [...generatedFramework.characters];
+                        newChars[index]!.secret = e.target.value;
+                        setGeneratedFramework({ ...generatedFramework, characters: newChars });
+                      }}
+                      rows={2}
+                      placeholder="如：隐瞒与主角家人有关的一段往事。"
                       className="w-full p-3 border border-neutral-200 rounded-xl text-xs leading-relaxed outline-none focus:border-neutral-900 bg-white transition-colors"
                     />
                   </div>

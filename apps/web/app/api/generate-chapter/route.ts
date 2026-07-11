@@ -25,7 +25,7 @@ function cleanAndParseJSON(raw: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { framework, chapterSummary, characterTransitions } = await req.json();
+    const { framework, chapterSummary, characterTransitions, chapterNumber } = await req.json();
 
     const apiKey = getEnv("LLM_API_KEY");
     const baseUrl = getEnv("LLM_BASE_URL");
@@ -69,6 +69,8 @@ export async function POST(req: NextRequest) {
       .replace("{{TITLE}}", framework.title || "")
       .replace("{{GENRE}}", framework.genre || "悬疑奇幻")
       .replace("{{WORLD_VIEW}}", framework.worldView || "")
+      .replace("{{CORE_CONFLICT}}", framework.coreConflict || "暂无明确的核心矛盾设定")
+      .replace("{{CHAPTER_NUMBER}}", `第 ${(chapterNumber || 1)} 章 → 第 ${(chapterNumber || 1) + 1} 章`)
       .replace("{{CHAPTER_SUMMARY}}", chapterSummary || "")
       .replace("{{ENTERING_CHARACTERS}}", enteringContext)
       .replace("{{STAYING_CHARACTERS}}", stayingContext);

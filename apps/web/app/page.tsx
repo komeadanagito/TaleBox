@@ -14,6 +14,10 @@ export default function RootWelcomePage() {
     router.push("/creation/create-story");
   };
 
+  const handleImportNovel = () => {
+    router.push("/creation/import-novel");
+  };
+
   return (
     <div className="min-h-screen bg-[#fcfcfc] text-[#18181b] flex flex-col font-sans selection:bg-neutral-100 selection:text-neutral-900">
       {/* Upper Navigation Bar */}
@@ -83,22 +87,23 @@ export default function RootWelcomePage() {
             </button>
 
             {/* Option B: Import */}
-            <div className="relative group p-8 text-left bg-zinc-50/50 rounded-2xl border border-neutral-100 flex flex-col justify-between h-64 opacity-60 cursor-not-allowed">
-              <div className="h-12 w-12 rounded-xl bg-zinc-200 text-zinc-500 flex items-center justify-center">
+            <button onClick={handleImportNovel} className="relative group p-8 text-left bg-white rounded-2xl border border-neutral-200/70 hover:border-neutral-900 subtle-shadow hover:shadow-md transition-all duration-300 flex flex-col justify-between h-64 focus:outline-none">
+              <div className="h-12 w-12 rounded-xl bg-zinc-100 text-zinc-700 flex items-center justify-center group-hover:bg-neutral-900 group-hover:text-white transition-colors">
                 <Upload className="h-5 w-5" />
               </div>
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-medium text-zinc-700 font-serif">
+                  <h3 className="text-lg font-medium text-zinc-950 font-serif flex items-center gap-1">
                     导入小说文本
+                    <ChevronRight className="h-4 w-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
                   </h3>
-                  <span className="text-[10px] bg-zinc-200/70 text-zinc-500 px-2 py-0.5 rounded-full font-sans font-normal">暂缓开发</span>
+                  <span className="text-[10px] bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full font-sans font-normal">体验版</span>
                 </div>
-                <p className="text-zinc-400 text-xs leading-relaxed">
-                  上传本地 TXT/EPUB 小说，大模型将解析小说内人物、势力和时间线，供您随时切入主角或配角对话。
+                <p className="text-zinc-500 text-xs leading-relaxed">
+                  上传本地 TXT 小说，逐章选择原著角色，通过剧情选项重新经历故事中的关键时刻。
                 </p>
               </div>
-            </div>
+            </button>
 
           </div>
         </div>

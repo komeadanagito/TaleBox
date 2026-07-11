@@ -5,7 +5,7 @@ export const runtime = "nodejs"; // ensure nodejs environment for standard file 
 
 export async function POST(req: NextRequest) {
   try {
-    const { framework, messages, userInput, tone } = await req.json();
+    const { framework, messages, userInput, tone, chapterNumber } = await req.json();
     
     const apiKey = getEnv("LLM_API_KEY");
     const baseUrl = getEnv("LLM_BASE_URL");
@@ -17,12 +17,16 @@ export async function POST(req: NextRequest) {
 
     // Format characters list with their settings for context
     const charsList = framework.characters.map((c: any) => 
-      `- ID: ${c.id}, 姓名: ${c.name}, 标签/身份: ${c.role}\n  人设与秘密: ${c.persona}\n  台词风格: ${c.speechStyle}\n  好感度: ${c.relationship ?? 50}`
+      `- ID: ${c.id}, 姓名: ${c.name}, 标签/身份: ${c.role}\n  年龄: ${c.age || "未设定"}\n  性别: ${c.gender === "female" ? "女" : c.gender === "male" ? "男" : "未设定"}\n  与主角关系: ${c.relationshipToProtagonist || "未设定"}\n  外显性格: ${c.personality || c.persona || "未设定"}\n  内心秘密: ${c.secret || "未设定"}\n  台词风格: ${c.speechStyle}\n  好感度: ${c.relationship ?? 50}`
     ).join("\n");
     const itemsList = framework.items.map((i: any) => `- 【${i.name}】: ${i.description}`).join("\n");
     
-    // Format dialogue history
-    const historyContext = messages.map((m: any) => {
+    // Format dialogue history — limit to latest 15 rounds to avoid token overflow
+    const MAX_HISTORY_ROUNDS = 15;
+    const recentMessages = messages.length > MAX_HISTORY_ROUNDS
+      ? messages.slice(messages.length - MAX_HISTORY_ROUNDS)
+      : messages;
+    const historyContext = recentMessages.map((m: any) => {
       if (m.role === "narrator") {
         return `[旁白]: ${m.content}`;
       } else if (m.role === "user") {
@@ -41,6 +45,9 @@ export async function POST(req: NextRequest) {
       .replace("{{TITLE}}", framework.title)
       .replace("{{GENRE}}", framework.genre || "自定义")
       .replace("{{WORLD_VIEW}}", framework.worldView)
+      .replace("{{CORE_CONFLICT}}", framework.coreConflict || "暂无明确的核心矛盾设定，请根据故事发展自然推进")
+      .replace("{{CHAPTER_GOAL}}", framework.chapterGoal || "本章目标尚未设定，请根据剧情发展合理推进")
+      .replace("{{CHAPTER_NUMBER}}", String(chapterNumber || 1))
       .replace("{{SCENE_LOCATION}}", framework.scenes[0]?.location || "")
       .replace("{{SCENE_SUMMARY}}", framework.scenes[0]?.summary || "")
       .replace("{{CHARACTER_LIST}}", charsList)
@@ -58,7 +65,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: model,
         messages: [
-          { role: "system", content: "你是一个互动小说编排导演。你必须严格按照要求的格式输出场景正文，以及附带的 [SUGGESTIONS] 与 [STATE_PATCH] 数据。" },
+          { role: "system", content: "你是一个互动小说编排导演。你必须严格按照要求的格式输出场景正文，以及附带的 [SUGGESTIONS] 与 [STATE_PATCH] 数据。禁止在正文中输出任何 Markdown 标题（如 # ## ### 等），禁止以'小说续写'、'接下来'等提示性词语开头正文。" },
           { role: "user", content: prompt }
         ],
         stream: true,
