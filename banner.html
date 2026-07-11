@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>TaleBox Banner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f0d0b;
+      --fg: #fbf5f0;
+      --accent: #e28a50;
+      --accent-gold: #f5b041;
+      --muted: #8a837c;
+      --border: rgba(251, 245, 240, 0.1);
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--fg);
+      font-family: 'Inter', sans-serif;
+      width: 1800px;
+      height: 1012px;
+      padding: 60px 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+      position: relative;
+    }
+    /* Top Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+      font-size: 14px;
+      letter-spacing: 0.2em;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      color: var(--fg);
+      font-size: 24px;
+      text-transform: lowercase;
+      letter-spacing: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .logo span {
+      color: var(--accent-gold);
+    }
+
+    /* Main Section */
+    .main-content {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 80px;
+      align-items: center;
+      flex-grow: 1;
+      padding: 40px 0;
+    }
+
+    /* Left Column */
+    .left-col {
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+    }
+    .badges {
+      display: flex;
+      gap: 12px;
+    }
+    .badge {
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .badge.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .badge span {
+      color: var(--accent-gold);
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 68px;
+      font-weight: 400;
+      line-height: 1.12;
+      letter-spacing: -0.01em;
+    }
+    h1 em {
+      font-style: italic;
+      color: var(--accent);
+      font-family: 'Playfair Display', serif;
+    }
+
+    .description {
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--muted);
+      max-width: 620px;
+    }
+    .description strong {
+      color: var(--fg);
+      font-weight: 600;
+    }
+
+    .cta-box {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 540px;
+      background: rgba(251, 245, 240, 0.02);
+    }
+    .cta-text {
+      font-family: 'Fira Code', monospace;
+      font-size: 16px;
+      color: var(--accent);
+    }
+    .cta-button {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border: 1px solid rgba(251, 245, 240, 0.2);
+      padding: 6px 12px;
+      border-radius: 4px;
+      color: var(--fg);
+    }
+
+    /* Right Column Mockup */
+    .right-col {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .mockup-window {
+      width: 100%;
+      height: 480px;
+      background: #181512;
+      border: 1px solid rgba(251, 245, 240, 0.08);
+      border-radius: 12px;
+      box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .window-header {
+      height: 45px;
+      background: #1f1b18;
+      border-bottom: 1px solid rgba(251, 245, 240, 0.05);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 16px;
+    }
+    .window-dots {
+      display: flex;
+      gap: 8px;
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ff5f56; }
+    .dot-yellow { background: #ffbd2e; }
+    .dot-green { background: #27c93f; }
+
+    .window-address {
+      flex-grow: 1;
+      height: 26px;
+      background: #141210;
+      border-radius: 4px;
+      border: 1px solid rgba(251, 245, 240, 0.03);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      font-size: 12px;
+      color: var(--muted);
+      font-family: 'Fira Code', monospace;
+    }
+
+    .window-content {
+      flex-grow: 1;
+      background: #12100e;
+      position: relative;
+      display: flex;
+      padding: 24px;
+      gap: 20px;
+    }
+
+    /* Bookshelf rendering in CSS */
+    .bookshelf-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 15px;
+    }
+    
+    .shelf {
+      height: 12px;
+      background: #2b231d;
+      border-radius: 4px;
+      width: 100%;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      position: relative;
+    }
+    .shelf::before {
+      content: '';
+      position: absolute;
+      bottom: -8px;
+      left: 0;
+      width: 100%;
+      height: 8px;
+      background: #1d1814;
+    }
+
+    .books-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      padding: 0 10px;
+    }
+
+    .book {
+      width: 32px;
+      border-radius: 3px 3px 0 0;
+      position: relative;
+      box-shadow: 2px -2px 5px rgba(0,0,0,0.2);
+      transition: transform 0.3s;
+      border-left: 2px solid rgba(255,255,255,0.08);
+    }
+    .book::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 4px;
+      width: 4px;
+      height: 100%;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .book-1 { height: 160px; background: #8e44ad; width: 34px; } /* Purple */
+    .book-2 { height: 180px; background: #e67e22; width: 38px; } /* Orange */
+    .book-3 { height: 140px; background: #27ae60; width: 30px; } /* Green */
+    .book-4 { height: 195px; background: #c0392b; width: 42px; transform: rotate(-5deg); transform-origin: bottom left; margin-right: 15px;} /* Red, tilted */
+    .book-5 { height: 170px; background: #d35400; width: 36px; } /* Dark orange */
+    .book-6 { height: 150px; background: #f1c40f; width: 32px; border: 2px solid var(--accent); } /* Selected book, Gold with border */
+    .book-7 { height: 165px; background: #2980b9; width: 34px; } /* Blue */
+    
+    .book-selected-glow {
+      position: absolute;
+      top: -15px;
+      left: -15px;
+      right: -15px;
+      bottom: 0;
+      border: 2px dashed var(--accent);
+      border-radius: 8px;
+      pointer-events: none;
+    }
+
+    /* Annotation arrow & text */
+    .annotation {
+      position: absolute;
+      top: 30px;
+      right: -30px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      z-index: 10;
+    }
+    .annotation-text {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-size: 22px;
+      color: var(--accent-gold);
+      text-align: right;
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+    .annotation-subtext {
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .arrow-svg {
+      width: 80px;
+      height: 80px;
+      transform: scaleX(-1) rotate(45deg);
+      margin-right: 30px;
+      margin-top: 10px;
+    }
+
+    /* Floating star badge */
+    .floating-star-badge {
+      position: absolute;
+      bottom: -35px;
+      right: -35px;
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      background: var(--accent-gold);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #000;
+      font-weight: 800;
+      font-size: 14px;
+      letter-spacing: 0.05em;
+      box-shadow: 0 10px 30px rgba(245, 176, 65, 0.4);
+      z-index: 100;
+    }
+    .floating-star-badge svg {
+      width: 32px;
+      height: 32px;
+      margin-bottom: 4px;
+      fill: #000;
+    }
+
+    /* Bottom Stats */
+    footer {
+      border-top: 1px solid var(--border);
+      padding-top: 30px;
+      display: flex;
+      justify-content: flex-start;
+      gap: 100px;
+    }
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .stat-val {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--fg);
+      font-family: 'Playfair Display', serif;
+    }
+    .stat-label {
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div>TALEBOX · DIGITAL LITERATURE · 2026</div>
+    <div class="logo"><span>★</span> talebox.ai</div>
+    <div>STORY · 01 / 01 · STAR US</div>
+  </header>
+
+  <!-- Main content -->
+  <div class="main-content">
+    
+    <!-- Left Column -->
+    <div class="left-col">
+      <div class="badges">
+        <div class="badge active"><span>★</span> Star Us</div>
+        <div class="badge">Open Source</div>
+        <div class="badge">Apache 2.0</div>
+      </div>
+      
+      <h1>
+        Turn your<br>
+        <em>static novels</em><br>
+        into interactive<br>
+        <em>dynamic worlds</em>.
+      </h1>
+      
+      <p class="description">
+        TaleBox is built in the open. <strong>Reading shouldn't just be passive</strong> — it should be a dialogue, a choice, a living world. Import your novels, generate AI character cards, and experience 3D narrative play.
+      </p>
+      
+      <div class="cta-box">
+        <span class="cta-text">github.com/komeadanagito/TaleBox</span>
+        <span class="cta-button">Copy Link</span>
+      </div>
+    </div>
+    
+    <!-- Right Column -->
+    <div class="right-col">
+      
+      <!-- Mockup window -->
+      <div class="mockup-window">
+        <div class="window-header">
+          <div class="window-dots">
+            <span class="dot dot-red"></span>
+            <span class="dot dot-yellow"></span>
+            <span class="dot dot-green"></span>
+          </div>
+          <div class="window-address">localhost:3000/bookshelf</div>
+        </div>
+        
+        <div class="window-content">
+          <!-- Two shelves with books -->
+          <div class="bookshelf-container">
+            <!-- Upper Shelf -->
+            <div class="books-row">
+              <div class="book book-1"></div>
+              <div class="book book-2"></div>
+              <div class="book book-3"></div>
+              <div class="book book-4"></div>
+            </div>
+            <div class="shelf"></div>
+
+            <!-- Lower Shelf -->
+            <div class="books-row" style="margin-top: 10px;">
+              <div class="book book-5"></div>
+              <!-- Selected Book with dashed border -->
+              <div style="position: relative;">
+                <div class="book book-6"></div>
+                <div class="book-selected-glow"></div>
+              </div>
+              <div class="book book-7"></div>
+            </div>
+            <div class="shelf"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow and annotation -->
+      <div class="annotation">
+        <div class="annotation-text">Tap to enter<br>the story.</div>
+        <div class="annotation-subtext">3D interactive bookshelf</div>
+        <svg class="arrow-svg" viewBox="0 0 100 100" fill="none" stroke="#f5b041" stroke-width="2" stroke-linecap="round">
+          <path d="M10,90 Q50,90 70,40" stroke-dasharray="4 4" stroke="#f5b041" />
+          <path d="M60,45 L70,40 L65,30" stroke-width="2" fill="none" />
+        </svg>
+      </div>
+
+      <!-- Floating Star Badge -->
+      <div class="floating-star-badge">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+        </svg>
+        <span>STAR</span>
+        <span>US!</span>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Footer Stats -->
+  <footer>
+    <div class="stat-item" style="border-right: 1px solid var(--border); padding-right: 80px;">
+      <div class="stat-val">01</div>
+      <div class="stat-label">AI Novel Parser</div>
+    </div>
+    <div class="stat-item" style="border-right: 1px solid var(--border); padding-right: 80px;">
+      <div class="stat-val">3D</div>
+      <div class="stat-label">Interactive Bookshelf</div>
+    </div>
+    <div class="stat-item" style="border-right: 1px solid var(--border); padding-right: 80px;">
+      <div class="stat-val">100%</div>
+      <div class="stat-label">Empathetic Dialogue</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-val">Open</div>
+      <div class="stat-label">Source Community</div>
+    </div>
+  </footer>
+
+</body>
+</html>
