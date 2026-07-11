@@ -9,17 +9,35 @@ import {
 } from "lucide-react";
 import { useStory } from "../context/StoryContext";
 import ThreeBookshelf from "../../components/ThreeBookshelf";
-import { deleteImportedNovel, listImportedNovels } from "../../lib/import-novel/store";
+import { deleteImportedNovel, listChapterSessions, listImportedNovels } from "../../lib/import-novel/store";
 import type { ImportedNovel } from "../../lib/import-novel/types";
 
 export default function BookshelfPage() {
   const router = useRouter();
   const { stories, loadStory, createNewStory, deleteStory } = useStory();
   const [shelfTab, setShelfTab] = useState<"create" | "upload">("create");
-  const [importedNovels, setImportedNovels] = useState<ImportedNovel[]>([]);
+  const [importedNovels, setImportedNovels] = useState<Array<ImportedNovel & { currentChapter: number; readingProgress: number; resumePath: string }>>([]);
 
   useEffect(() => {
-    void listImportedNovels().then(setImportedNovels).catch((error) => console.error("Failed to load imported bookshelf:", error));
+    void Promise.all([listImportedNovels(), listChapterSessions()]).then(([novels, sessions]) => {
+      setImportedNovels(novels.map((novel) => {
+        const novelSessions = sessions.filter((session) => session.novelId === novel.id);
+        const highestChapter = novelSessions.reduce((highest, session) => Math.max(highest, session.chapterNumber), 0);
+        const chapterSessions = novelSessions.filter((session) => session.chapterNumber === highestChapter).sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+        const activeSession = chapterSessions[0];
+        if (!activeSession) return { ...novel, currentChapter: 1, readingProgress: 0, resumePath: `/story/${novel.id}/chapter/1/setup` };
+        const moveToNext = activeSession.status === "completed" && activeSession.chapterNumber < novel.chapters.length;
+        const currentChapter = moveToNext ? activeSession.chapterNumber + 1 : activeSession.chapterNumber;
+        const completedFraction = activeSession.status === "completed" ? 1 : (activeSession.progress || 0) / 100;
+        const readingProgress = Math.min(100, Math.max(1, Math.round(((activeSession.chapterNumber - 1 + completedFraction) / novel.chapters.length) * 100)));
+        const resumePath = moveToNext
+          ? `/story/${novel.id}/chapter/${currentChapter}/setup`
+          : activeSession.status === "completed"
+            ? `/story/${novel.id}/chapter/${activeSession.chapterNumber}/play?role=${encodeURIComponent(activeSession.roleId)}`
+            : `/story/${novel.id}/chapter/${activeSession.chapterNumber}/play?role=${encodeURIComponent(activeSession.roleId)}`;
+        return { ...novel, currentChapter, readingProgress, resumePath };
+      }));
+    }).catch((error) => console.error("Failed to load imported bookshelf:", error));
   }, []);
   
   // Modal states for 3D page flipping details view
@@ -51,7 +69,7 @@ export default function BookshelfPage() {
 
   const handleSelectBook = (story: any) => {
     if (story.fileType && Array.isArray(story.chapters)) {
-      router.push(`/story/${story.id}/chapter/1/setup`);
+      router.push(story.resumePath || `/story/${story.id}/chapter/1/setup`);
       return;
     }
     setSelectedStory(story);

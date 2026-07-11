@@ -46,6 +46,17 @@ export async function saveChapterSession(session: ChapterSession) {
   database.close();
 }
 
+export async function listChapterSessions(): Promise<ChapterSession[]> {
+  const database = await openDatabase();
+  const sessions = await new Promise<ChapterSession[]>((resolve, reject) => {
+    const request = database.transaction(SESSION_STORE_NAME, "readonly").objectStore(SESSION_STORE_NAME).getAll();
+    request.onsuccess = () => resolve((request.result as ChapterSession[] | undefined) || []);
+    request.onerror = () => reject(request.error || new Error("读取阅读进度失败"));
+  });
+  database.close();
+  return sessions;
+}
+
 export async function saveImportedNovel(novel: ImportedNovel) {
   const database = await openDatabase();
   await new Promise<void>((resolve, reject) => {
