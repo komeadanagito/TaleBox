@@ -68,3 +68,7 @@ coverage/
 .agents/
 AGENTS.md
 
+# Ignored docs and temp assets
+docs/
+iamges/
+image copy.png
