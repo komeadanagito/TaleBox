@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
     const promptHash = await sha256(`${systemPrompt}\n---\n${userTemplate.trim()}\n---\n${retryPrompt}`);
     const chunks = createParagraphChunks(input.paragraphs);
     const results: ChapterAnalysis[] = [];
+    const degradedChunkErrors: string[] = [];
 
     for (let index = 0; index < chunks.length; index += CHUNK_ANALYSIS_CONCURRENCY) {
       const batch = chunks.slice(index, index + CHUNK_ANALYSIS_CONCURRENCY);
@@ -58,14 +59,27 @@ export async function POST(request: NextRequest) {
             if (error instanceof Error && error.message === "该页面属于电子书前置信息，不作为互动章节") {
               throw error;
             }
-            console.warn(`[novel-import] chunk ${chunk.index + 1}/${chunks.length} uses source-only plan:`, error instanceof Error ? error.message : error);
+            const message = error instanceof Error ? error.message : "未知模型错误";
+            degradedChunkErrors.push(`第 ${chunk.index + 1} 块：${message}`);
+            console.warn(`[novel-import] chunk ${chunk.index + 1}/${chunks.length} uses source-only plan:`, message);
             return createSourceOnlyChunkPlan(chunk.paragraphs);
           });
       })));
     }
 
+    // A source-only plan is useful when one chunk fails, because the remaining
+    // model output can still provide roles. When every chunk fails, however,
+    // returning HTTP 200 only caches an empty character list and the UI silently
+    // falls back to the generic reader role. Keep that state retryable instead.
+    if (degradedChunkErrors.length === chunks.length) {
+      throw new Error(`人物分析未完成，请重试。${degradedChunkErrors[0] || "模型没有返回可用结果"}`);
+    }
+
     const paragraphIds = input.paragraphs.map((paragraph) => paragraph.id);
     const result = mergeChapterPlan(results, paragraphIds, sourceHash);
+    if (result.characters.length === 0) {
+      throw new Error("没有从本章原文中识别到人物，请重试；若仍失败，请检查导入模型配置或原文格式");
+    }
     const finalPlan = { ...result, promptHash };
     assertChapterPlan(finalPlan, input.paragraphs, sourceHash);
     return NextResponse.json({ result: finalPlan });

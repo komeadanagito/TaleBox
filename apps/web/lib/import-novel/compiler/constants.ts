@@ -1,4 +1,4 @@
-export const NOVEL_COMPILER_VERSION = "3.3.0";
+export const NOVEL_COMPILER_VERSION = "3.3.1";
 export const NOVEL_PROMPT_VERSION = "2026-07-11.2";
 export const CHUNK_CHARACTER_LIMIT = 30_000;
 export const CHUNK_OVERLAP_PARAGRAPHS = 2;

@@ -1,4 +1,4 @@
-import type { ChapterAnalysis, ChapterSession, ImportedNovel, NovelDriveMode } from "./types";
+import type { AiNarrativeMode, ChapterAnalysis, ChapterSession, ImportedNovel, NovelDriveMode } from "./types";
 import { createParagraphs } from "./parser";
 import { serializeChapterSource, sha256 } from "./compiler/hash";
 import { assertChapterPlan } from "./compiler/validator";
@@ -37,9 +37,9 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
-export function chapterSessionId(novelId: string, chapterNumber: number, roleId: string, driveMode: NovelDriveMode = "original") {
+export function chapterSessionId(novelId: string, chapterNumber: number, roleId: string, driveMode: NovelDriveMode = "original", aiNarrativeMode: AiNarrativeMode = "faithful") {
   const base = `${novelId}:${chapterNumber}:${roleId}`;
-  return driveMode === "ai" ? `${base}:ai` : base;
+  return driveMode === "ai" ? `${base}:ai:${aiNarrativeMode}` : base;
 }
 
 function chapterPlanId(novelId: string, chapterNumber: number) {
@@ -66,8 +66,8 @@ async function writeChapterSession(session: ChapterSession) {
   }
 }
 
-export async function getChapterSession(novelId: string, chapterNumber: number, roleId: string, driveMode: NovelDriveMode = "original"): Promise<ChapterSession | null> {
-  const id = chapterSessionId(novelId, chapterNumber, roleId, driveMode);
+export async function getChapterSession(novelId: string, chapterNumber: number, roleId: string, driveMode: NovelDriveMode = "original", aiNarrativeMode: AiNarrativeMode = "faithful"): Promise<ChapterSession | null> {
+  const id = chapterSessionId(novelId, chapterNumber, roleId, driveMode, aiNarrativeMode);
   await waitForSessionWrite(id);
   const database = await openDatabase();
   const session = await new Promise<ChapterSession | null>((resolve, reject) => {

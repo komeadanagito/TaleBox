@@ -13,13 +13,59 @@ export type NovelStoryBlock =
 
 export interface NovelChoice {
   id: string;
-  kind: "observe" | "focus" | "act" | "speak";
+  kind: "observe" | "focus" | "act" | "speak" | "explore";
   label: string;
   hint: string;
-  doesNotChangeCanon: true;
+  doesNotChangeCanon: boolean;
 }
 
 export type NovelDriveMode = "original" | "ai";
+export type AiNarrativeMode = "faithful" | "free";
+
+export interface StoryRuntimeMemory {
+  id: string;
+  kind: "decision" | "event";
+  content: string;
+  sourceParagraphIds: string[];
+  createdAt: string;
+}
+
+export interface StoryKnowledgeNode {
+  id: string;
+  type: "character" | "location";
+  label: string;
+  sourceParagraphIds: string[];
+}
+
+export interface StoryKnowledgeEdge {
+  id: string;
+  fromNodeId: string;
+  relation: "位于" | "参与";
+  toNodeId: string;
+  sourceParagraphIds: string[];
+}
+
+export interface StoryRuntimeSnapshot {
+  version: number;
+  agent: {
+    roleId: string;
+    roleName: string;
+    activeGoal: string;
+    narrativeMode: AiNarrativeMode;
+    sourceParagraphIds: string[];
+  };
+  state: {
+    location: string;
+    presentCharacterNames: string[];
+    inventory: string[];
+    activeGoals: string[];
+  };
+  memories: StoryRuntimeMemory[];
+  graph: {
+    nodes: StoryKnowledgeNode[];
+    edges: StoryKnowledgeEdge[];
+  };
+}
 
 export interface AiChapterTurn {
   id: string;
@@ -29,6 +75,7 @@ export interface AiChapterTurn {
   blocks: NovelStoryBlock[];
   choices: NovelChoice[];
   selectedChoiceId?: string;
+  runtimeSnapshot?: StoryRuntimeSnapshot;
   createdAt: string;
 }
 
@@ -110,7 +157,9 @@ export interface ChapterSession {
   chapterNumber: number;
   roleId: string;
   driveMode?: NovelDriveMode;
+  aiNarrativeMode?: AiNarrativeMode;
   aiRuntimeVersion?: string;
+  storyRuntime?: StoryRuntimeSnapshot;
   currentBeatIndex: number;
   sourceCursor: number;
   completedBeatIds: string[];

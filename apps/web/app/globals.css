@@ -32,6 +32,63 @@ body {
   overflow-x: hidden;
 }
 
+/* Homepage cursor reveal. Both canvases share identical geometry; the magic art
+   gets a small content correction because its book sits lower inside the PNG. */
+.hero-reveal-background {
+  --reveal-x: 50%;
+  --reveal-y: 62%;
+  pointer-events: none !important;
+}
+
+.hero-reveal-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hero-reveal-image {
+  position: absolute;
+  left: 50%;
+  top: 60%;
+  width: min(1120px, 96vw);
+  max-width: none;
+  user-select: none;
+  object-fit: contain;
+  transform-origin: center;
+  pointer-events: none;
+}
+
+.hero-reveal-base {
+  opacity: .58;
+  transform: translate(-50%, -50%);
+}
+
+.hero-reveal-magic {
+  opacity: .94;
+  transform: translate(calc(-50% + var(--reveal-offset-x)), calc(-50% + var(--reveal-offset-y))) scale(var(--reveal-scale));
+}
+
+.hero-reveal-mask {
+  opacity: 0;
+  transition: opacity 520ms cubic-bezier(.22, 1, .36, 1);
+  -webkit-mask-image: radial-gradient(circle at var(--reveal-x) var(--reveal-y), #000 0, #000 var(--reveal-inner), transparent var(--reveal-outer));
+  mask-image: radial-gradient(circle at var(--reveal-x) var(--reveal-y), #000 0, #000 var(--reveal-inner), transparent var(--reveal-outer));
+}
+
+.hero-reveal-background[data-active="true"] .hero-reveal-mask {
+  opacity: 1;
+}
+
+@media (max-width: 767px), (pointer: coarse) {
+  .hero-reveal-image { top: 62%; width: min(760px, 125vw); }
+  .hero-reveal-base { opacity: .22; }
+  .hero-reveal-mask { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-reveal-mask { display: none; transition: none; }
+}
+
 /* Imported novel reading surface */
 .novel-reading-paper {
   background-color: #f8f3e9;

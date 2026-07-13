@@ -1,6 +1,7 @@
 import { CHUNK_MAX_OUTPUT_TOKENS, CHUNK_REQUEST_TIMEOUT_MS } from "../../../lib/import-novel/compiler/constants";
 import type { TaggedParagraph } from "../../../lib/import-novel/compiler/chunker";
 import type { ChapterAnalysis, ChoiceTemplate, NovelCharacter, StoryBeat } from "../../../lib/import-novel/types";
+import { thinkingRequestOptions } from "../env";
 
 const CHARACTER_ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const PARAGRAPH_ID_PATTERN = /^p-\d{4,}$/;
@@ -220,7 +221,7 @@ async function requestModelOutput(config: ChunkModelConfig, userPrompt: string) 
     body: JSON.stringify({
       model: config.model,
       temperature: 0,
-      enable_thinking: false,
+      ...thinkingRequestOptions(config.baseUrl),
       max_tokens: CHUNK_MAX_OUTPUT_TOKENS,
       response_format: { type: "json_object" },
       messages: [

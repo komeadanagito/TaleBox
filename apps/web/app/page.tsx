@@ -4,6 +4,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { BookOpen, Upload, Sparkles, ChevronRight, Laptop } from "lucide-react";
 import { useStory } from "./context/StoryContext";
+import HeroRevealBackground from "../components/HeroRevealBackground";
 
 export default function RootWelcomePage() {
   const router = useRouter();
@@ -19,9 +20,9 @@ export default function RootWelcomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fcfcfc] text-[#18181b] flex flex-col font-sans selection:bg-neutral-100 selection:text-neutral-900">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#fcfcfc] font-sans text-[#18181b] selection:bg-neutral-100 selection:text-neutral-900">
       {/* Upper Navigation Bar */}
-      <header className="h-16 px-8 border-b border-neutral-100/80 bg-white/70 backdrop-blur-md flex items-center justify-between sticky top-0 z-50">
+      <header className="z-50 flex h-16 shrink-0 items-center justify-between border-b border-neutral-100/80 bg-white/70 px-4 backdrop-blur-md sm:px-8">
         <div className="flex items-center gap-3">
           <span className="h-8 w-8 rounded-lg bg-neutral-900 flex items-center justify-center text-white font-serif font-bold text-sm tracking-tight shadow-sm">T</span>
           <h1 className="text-base font-medium tracking-tight font-serif text-[#09090b]">
@@ -49,8 +50,9 @@ export default function RootWelcomePage() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 w-full max-w-5xl mx-auto px-6 py-12 flex flex-col items-center justify-center">
-        <div className="w-full max-w-3xl flex flex-col items-center text-center space-y-12">
+      <main className="relative isolate flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden px-4 py-4 sm:px-6 md:py-8">
+        <HeroRevealBackground baseImageSrc="/images/hero/book-draft.png" revealImageSrc="/images/hero/book-universe.png" size={480} />
+        <div className="relative z-10 flex w-full max-w-3xl flex-col items-center space-y-6 text-center md:space-y-10">
           
           <div className="space-y-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-neutral-100 bg-white text-xs text-zinc-500 font-medium shadow-sm">
@@ -65,12 +67,12 @@ export default function RootWelcomePage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full mt-4">
+          <div className="grid w-full grid-cols-1 gap-3 md:mt-2 md:grid-cols-2 md:gap-6">
             
             {/* Option A: Creation */}
             <button 
               onClick={handleStartNewCreation}
-              className="group p-8 text-left bg-white rounded-2xl border border-neutral-200/70 hover:border-neutral-900 subtle-shadow hover:shadow-md transition-all duration-300 flex flex-col justify-between h-64 focus:outline-none"
+              className="group flex h-36 flex-col justify-between rounded-2xl border border-neutral-200/70 bg-white p-5 text-left subtle-shadow transition-all duration-300 hover:border-neutral-900 hover:shadow-md focus:outline-none md:h-64 md:p-8"
             >
               <div className="h-12 w-12 rounded-xl bg-neutral-900 text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
                 <BookOpen className="h-5 w-5" />
@@ -87,7 +89,7 @@ export default function RootWelcomePage() {
             </button>
 
             {/* Option B: Import */}
-            <button onClick={handleImportNovel} className="relative group p-8 text-left bg-white rounded-2xl border border-neutral-200/70 hover:border-neutral-900 subtle-shadow hover:shadow-md transition-all duration-300 flex flex-col justify-between h-64 focus:outline-none">
+            <button onClick={handleImportNovel} className="relative group flex h-36 flex-col justify-between rounded-2xl border border-neutral-200/70 bg-white p-5 text-left subtle-shadow transition-all duration-300 hover:border-neutral-900 hover:shadow-md focus:outline-none md:h-64 md:p-8">
               <div className="h-12 w-12 rounded-xl bg-zinc-100 text-zinc-700 flex items-center justify-center group-hover:bg-neutral-900 group-hover:text-white transition-colors">
                 <Upload className="h-5 w-5" />
               </div>
@@ -109,7 +111,7 @@ export default function RootWelcomePage() {
         </div>
       </main>
 
-      <footer className="py-8 border-t border-neutral-100 bg-white text-center text-[10px] text-zinc-400">
+      <footer className="hidden shrink-0 border-t border-neutral-100 bg-white py-3 text-center text-[10px] text-zinc-400 sm:block">
         TaleBox Interactive Novel Lab © 2026. Made with Premium Minimalism.
       </footer>
     </div>

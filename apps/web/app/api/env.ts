@@ -43,6 +43,21 @@ export function getEnv(key: string): string {
   return "";
 }
 
+export function thinkingRequestOptions(baseUrl: string) {
+  const hostname = (() => {
+    try { return new URL(baseUrl).hostname.toLowerCase(); }
+    catch { return baseUrl.toLowerCase(); }
+  })();
+
+  if (hostname === "open.bigmodel.cn" || hostname.endsWith(".bigmodel.cn") || hostname === "api.z.ai" || hostname.endsWith(".z.ai")) {
+    return { thinking: { type: "disabled" } } as const;
+  }
+  if (hostname.includes("dashscope")) {
+    return { enable_thinking: false } as const;
+  }
+  return {};
+}
+
 export function loadPrompt(fileName: string): string {
   if (path.basename(fileName) !== fileName) throw new Error(`Invalid prompt file name: ${fileName}`);
   const isDev = process.env.NODE_ENV === "development";
